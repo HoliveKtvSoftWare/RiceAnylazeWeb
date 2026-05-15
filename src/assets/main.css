@@ -1,0 +1,87 @@
+/* src/assets/main.css */
+
+/* 定义颜色变量 */
+:root {
+  --color-primary-green-darkest: #1b5e20;
+  --color-primary-green-dark: #2e7d32;
+  --color-primary-green: #4caf50;
+  --color-primary-green-light: #c8e6c9;
+  --color-primary-green-lightest: #e6f4ea;
+
+  --color-text: #2c3e50;
+  --color-background: #f4f4f4;
+  --color-surface: #ffffff;
+  --color-error: #dc3545;
+}
+
+/* 应用基础背景色 */
+body {
+  background-image: url('@/assets/Login.jpg');
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background-size: cover;
+  background-position: center;
+  color: var(--color-text);
+}
+
+/* 可以将一些通用按钮样式放在这里 */
+button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+  transition: background-color 0.2s, opacity 0.2s;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 主题绿色按钮 */
+button.primary {
+  background-color: var(--color-primary-green);
+  color: white;
+}
+button.primary:hover:not(:disabled) {
+  background-color: var(--color-primary-green-dark);
+}
+
+/* 链接样式 */
+a {
+  color: var(--color-primary-green-dark);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* 输入框样式 */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="file"] {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box; /* 确保 padding 不会撑大元素 */
+  margin-bottom: 10px; /* 与下方元素留出间距 */
+}
+input[type="file"] {
+  border: none; /* 文件输入框通常不需要边框 */
+}
+
+/* 错误消息 */
+.error-message {
+  color: var(--color-error);
+  font-size: 0.9em;
+  margin-top: 5px;
+}
+/* 成功消息 */
+.success-message {
+  color: var(--color-primary-green-dark);
+  font-size: 0.9em;
+  margin-top: 5px;
+}
