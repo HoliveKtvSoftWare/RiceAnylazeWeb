@@ -1,6 +1,8 @@
 <template>
   <div class="dashboard-view">
     <main class="dashboard-content">
+
+      <!-- 上部操作面板 -->
       <section class="upload-section card">
         <h3>上传图片进行分割</h3>
         <div class="upload-controls">
@@ -29,6 +31,7 @@
         </div>
       </section>
 
+      <!-- 分割内容显示区域 -->
       <div class="main-area">
         <section class="detail-section card" v-if="analysisStore.selectedJob">
           <h3>分割详情: {{ analysisStore.selectedJob.originalFilename }}</h3>
