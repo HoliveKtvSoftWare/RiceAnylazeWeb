@@ -474,7 +474,7 @@ const translateStatus = (status) => {
 
 <style scoped>
 /* --- 基础样式 --- */
-.dashboard-view { }
+
 .dashboard-content { display: flex; flex-direction: column; gap: 20px; }
 .card { background-color: var(--color-surface, #ffffff); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 h3 { margin-top: 0; color: var(--color-primary-green-dark, #2e7d32); border-bottom: 2px solid var(--color-primary-green-lightest, #e6f4ea); padding-bottom: 10px; margin-bottom: 20px; }
@@ -607,8 +607,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   opacity: 0.6;
   cursor: not-allowed;
 }
-.status-processing, .status-queued, .status-pending { background-color: #ff9800; }
-.status-completed { background-color: var(--color-primary-green, #4caf50); }
+.status-processing { background-color: #ff9800; }
 .status-failed { background-color: var(--color-error, #dc3545); }
 .no-jobs-message { color: #666; text-align: center; padding: 20px; }
 
@@ -709,8 +708,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 .job-details strong { margin-right: 5px; color: #111; }
 
 .status-tag { padding: 3px 8px; border-radius: 12px; font-size: 0.85em; color: white; min-width: 60px; text-align: center; display: inline-block; }
-.status-tag.status-processing, .status-tag.status-queued, .status-tag.status-pending { background-color: #ff9800; }
-.status-tag.status-completed { background-color: var(--color-primary-green, #4caf50); }
+.status-tag.status-processing { background-color: #ff9800; }
 .status-tag.status-failed { background-color: var(--color-error, #dc3545); }
 
 .result-links { margin-top: 15px; display: flex; gap: 15px; flex-wrap: wrap; }
