@@ -19,14 +19,6 @@
             <span class="label">邮箱:</span>
             <span class="value">{{ authStore.user.email || 'N/A' }}</span>
           </div>
-          <div class="info-row">
-            <span class="label">注册时间:</span>
-            <span class="value">{{ formatDate(authStore.user.created_at) || 'N/A' }}</span>
-          </div>
-          <div class="info-row">
-            <span class="label">最后登录:</span>
-            <span class="value">{{ formatDate(authStore.user.last_login) || 'N/A' }}</span>
-          </div>
         </div>
 
         <div v-else class="loading-message">
@@ -96,9 +88,8 @@
         <h3>安全操作</h3>
         <div class="security-actions">
           <button class="warning" @click="handleLogout">退出登录</button>
-          <!-- <button class="danger" @click="showDeleteModal = true">删除账户</button> -->
+          <button class="danger" @click="showDeleteModal = true">删除账户</button>
         </div>
-        <!-- <p class="security-note">删除账户将永久删除所有数据，此操作不可逆。</p> -->
       </section>
     </main>
 

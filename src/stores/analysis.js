@@ -3,26 +3,30 @@ import { ref } from 'vue';
 import { analysisService } from '@/services/analysisService'; // 导入分析服务
 
 export const useAnalysisStore = defineStore('analysis', () => {
-  // --- State ---
-  const jobs = ref([]); // (可选) 存储用户本次会话提交的任务
+  const jobs = ref([]); // 存储用户本次会话提交的任务
   const isLoading = ref(false); // 标记文件上传或获取历史的状态
   const error = ref(null); // 存储操作中的错误信息
   const historyList = ref([]); // 存储从后端获取的完整历史记录
   const selectedJob = ref(null); // 存储当前选中的历史记录对象
 
-  // --- 新增 Action: 设置/清除错误信息 ---
+  /**
+   * 设置/清除错误信息
+   */
   function setError(message) {
     // 这个 action 负责所有对 error状态的修改
     error.value = message;
   }
-  // --- 结束新增 ---
 
-  // --- Actions ---
-  async function uploadFileAction(file) {
+  /**
+   * 上传图片文件进行分析
+   * @param {File} file - 要上传的文件
+   * @param {string} batchId - 批次ID，用于标识同一次上传的多个文件
+   */
+  async function uploadFileAction(file, batchId = null) {
     isLoading.value = true;
     setError(null); // 调用 action 清除错误
     try {
-      const responseData = await analysisService.uploadFile(file); // 调用 service
+      const responseData = await analysisService.uploadFile(file, batchId); // 调用 service
       console.log('Upload successful, response:', responseData);
 
       if (responseData.analysis_id && responseData.original_filename) {
@@ -44,6 +48,34 @@ export const useAnalysisStore = defineStore('analysis', () => {
     }
   }
 
+  /**
+   * 批量上传文件夹进行分析
+   * @param {FileList|Array} files - 文件夹中的文件列表
+   */
+  async function uploadFolderAction(files) {
+    isLoading.value = true;
+    setError(null);
+    try {
+      const responseData = await analysisService.uploadFolder(files);
+      console.log('Folder upload successful, response:', responseData);
+
+      // 上传成功后刷新历史列表
+      await fetchHistoryAction();
+
+      return responseData; // 返回响应数据
+    } catch (err) {
+      console.error('Folder upload action failed:', err.response?.data || err.message);
+      const detail = err.response?.data?.detail || err.message || '上传文件夹失败。';
+      setError(detail);
+      return null;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /**
+   * 获取分析历史记录
+   */
   async function fetchHistoryAction() {
     isLoading.value = true;
     setError(null); // 调用 action 清除错误
@@ -72,8 +104,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
 
   /**
    * 删除指定的分析记录
-   * @param {string} analysisId - 要删除的分析记录ID
-   * @returns {Promise<boolean>} 删除操作是否成功
    */
   async function deleteJobAction(analysisId) {
     isLoading.value = true;
@@ -104,104 +134,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
     }
   }
 
-  /**
-   * 下载单个分析任务的Excel报告
-   * @param {string} analysisId - 分析任务ID
-   * @param {Array<string>} selectedColumns - 选定的列数组
-   * @returns {Promise<boolean>} 下载操作是否成功
-   */
-  async function downloadSingleExcelAction(analysisId, selectedColumns) {
-    isLoading.value = true;
-    setError(null);
-    try {
-      const response = await analysisService.exportSingleToExcel(analysisId, selectedColumns);
-
-      // 处理Excel文件下载
-      if (response.filename && response.content) {
-        // 将base64内容转换为blob
-        const byteCharacters = atob(response.content);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-
-        // 创建下载链接
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = response.filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-
-        console.log(`Excel file downloaded: ${response.filename}`);
-        return true;
-      } else {
-        setError('Excel文件数据格式错误');
-        return false;
-      }
-    } catch (err) {
-      console.error('Download single Excel action failed:', err);
-      const detail = err.response?.data?.detail || err.message || '下载Excel报告失败。';
-      setError(detail);
-      return false;
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  /**
-   * 下载所有分析记录的Excel总表
-   * @param {Array<string>} selectedColumns - 选定的列数组
-   * @returns {Promise<boolean>} 下载操作是否成功
-   */
-  async function downloadExcelSummaryAction(selectedColumns) {
-    isLoading.value = true;
-    setError(null);
-    try {
-      const response = await analysisService.exportAllToExcel(selectedColumns);
-
-      // 处理Excel文件下载
-      if (response.filename && response.content) {
-        // 将base64内容转换为blob
-        const byteCharacters = atob(response.content);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-
-        // 创建下载链接
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = response.filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-
-        console.log(`Excel summary file downloaded: ${response.filename}`);
-        return true;
-      } else {
-        setError('Excel总表数据格式错误');
-        return false;
-      }
-    } catch (err) {
-      console.error('Download Excel summary action failed:', err);
-      const detail = err.response?.data?.detail || err.message || '下载Excel总表失败。';
-      setError(detail);
-      return false;
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  // --- 返回 store 的公共接口 ---
   return {
     // State
     jobs,
@@ -211,11 +143,10 @@ export const useAnalysisStore = defineStore('analysis', () => {
     selectedJob,
     // Actions
     uploadFileAction,
+    uploadFolderAction,
     fetchHistoryAction,
     selectJobAction,
     setError,
     deleteJobAction,
-    downloadSingleExcelAction,
-    downloadExcelSummaryAction,
   };
 });

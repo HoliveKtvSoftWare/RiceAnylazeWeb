@@ -1,16 +1,12 @@
-// src/router/index.js
-
 import { createRouter, createWebHistory } from 'vue-router';
-// 导入我们之后会创建的页面组件
 import LoginView from '../views/LoginView.vue';
 import RegisterView from '../views/RegisterView.vue';
 import DashboardView from '../views/DashboardView.vue';
-import UserCenterView from '../views/UserCenterView.vue'; // 新增导入
-// 导入我们的认证 store，用于检查登录状态
+import UserCenterView from '../views/UserCenterView.vue';
 import { useAuthStore } from '@/stores/auth';
 
 const router = createRouter({
-  // 使用 HTML5 History 模式，URL 看起来更干净 (没有 #)
+  // 使用 HTML5 History 模式，URL 看起来更干净
   history: createWebHistory(import.meta.env.BASE_URL),
   // 定义路由规则
   routes: [
@@ -18,20 +14,20 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: LoginView,
-      meta: { requiresAuth: false } // 标记这个页面不需要登录
+      meta: { requiresAuth: false } // 访问页面不需要登录
     },
     {
       path: '/register',
       name: 'register',
       component: RegisterView,
-      meta: { requiresAuth: false } // 标记这个页面不需要登录
+      meta: { requiresAuth: false } // 访问页面不需要登录
     },
     {
       // 根路径，通常是用户登录后看到的主页面
       path: '/',
       name: 'dashboard',
       component: DashboardView,
-      meta: { requiresAuth: true } // 标记这个页面需要登录才能访问
+      meta: { requiresAuth: true } // 需要登录才能访问
     },
     {
       // 新增用户中心路由
@@ -43,8 +39,7 @@ const router = createRouter({
   ]
 });
 
-// --- 全局前置守卫 ---
-// 在每次路由跳转之前执行
+// 在每次路由跳转之前执行，用于检查用户登录状态
 router.beforeEach((to, from, next) => {
   // 获取认证 store 实例
   // 注意：Pinia store 必须在路由守卫内部获取，不能在顶层获取

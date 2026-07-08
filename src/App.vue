@@ -15,7 +15,7 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'; // 导入 onMounted
+import { onMounted } from 'vue';
 import { RouterView } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
 import AppSidebar from '@/components/AppSidebar.vue'

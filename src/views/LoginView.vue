@@ -1,6 +1,7 @@
 <template>
-  <div class="login-view">
-    <h2>登录</h2>
+  <div class="login-container">
+    <div class="login-form">
+    <h2>🌾水稻茎秆微表型结构分割平台</h2>
     <form @submit.prevent="handleLogin">
       <div class="form-group">
         <label for="email">邮箱:</label>
@@ -20,6 +21,7 @@
     <p>
       还没有账户？ <router-link to="/register">去注册</router-link>
     </p>
+    </div>
   </div>
 </template>
 
@@ -62,15 +64,22 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
-/* 添加一些简单的样式 */
-.login-view {
+.login-container {
+  display: flex;
+  justify-content: center; /* 水平居中 */
+  align-items: center; /* 垂直居中 */
+  min-height: 100vh;
+  width: 100%;
+}
+
+.login-form {
   max-width: 400px;
-  margin: 50px auto;
   padding: 20px;
   border: 1px solid #ccc;
   border-radius: 5px;
   text-align: center;
   background-color: rgba(255, 255, 255, 0.7);
+  width: 100%;
 }
 
 .form-group {

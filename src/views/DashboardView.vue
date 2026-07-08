@@ -3,10 +3,18 @@
     <main class="dashboard-content">
 
       <!-- 上部操作面板 -->
-      <section class="upload-section card">
+      <section class="">
         <h3>上传图片进行分割</h3>
         <div class="upload-controls">
-          <input type="file" @change="handleFileSelect" accept="image/*" :disabled="analysisStore.isLoading" ref="fileInput" />
+          <label class="file-input-label">
+            <input type="file" @change="handleFileSelect" accept="image/*" :disabled="analysisStore.isLoading" ref="fileInput" multiple />
+            <span>🖼️选择单张图片</span>
+          </label>
+
+          <label class="folder-input-label">
+            <input type="file" @change="handleFolderSelect" :webkitdirectory="true" :mozdirectory="true" :directory="true" accept="image/*" :disabled="analysisStore.isLoading" ref="folderInput" />
+            <span>📁选择文件夹</span>
+          </label>
 
           <div class="model-select">
             <label for="model-choice">选择模型:</label>
@@ -16,18 +24,24 @@
             </select>
           </div>
 
-          <button @click="handleFileUpload" :disabled="!selectedFile || analysisStore.isLoading" class="primary upload-button">
-            {{ analysisStore.isLoading ? '处理中...' : '上传并分割' }}
+          <button @click="handleFileUpload" :disabled="selectedFiles.length === 0 || analysisStore.isLoading" class="primary upload-button">
+            {{ analysisStore.isLoading ? '处理中...' : '上传单张并分割' }}
           </button>
+
+          <button @click="handleFolderUpload" :disabled="selectedFolderFiles.length === 0 || analysisStore.isLoading" class="primary folder-upload-button">
+            {{ analysisStore.isLoading ? '处理中...' : '上传文件夹并分割' }}
+          </button>
+
+          <div v-if="uploadSuccessMessage" class="success-message inline">
+            {{ uploadSuccessMessage }}
+          </div>
         </div>
+
         <div v-if="analysisStore.isLoading && !uploadSuccessMessage" class="loading-indicator">
           正在上传或加载历史...
         </div>
         <div v-if="analysisStore.error" class="error-message">
           操作失败: {{ analysisStore.error }}
-        </div>
-        <div v-if="uploadSuccessMessage" class="success-message">
-          {{ uploadSuccessMessage }}
         </div>
       </section>
 
@@ -39,20 +53,20 @@
             <div class="image-container">
               <h4>原始图片</h4>
               <img
-                v-if="analysisStore.selectedJob.originalImageUrl"
-                :src="analysisStore.selectedJob.originalImageUrl"
-                alt="原始图片"
-                @load="imageLoaded('original')"
-                @error="handleImageError('original')"
-                @mouseenter="handleMouseEnter('original')"
-                @mouseleave="handleMouseLeave('original')"
-                @wheel="handleWheel('original', $event)"
-                @mousedown="handleMouseDown('original', $event)"
-                :style="{
+                  v-if="analysisStore.selectedJob.originalImageUrl"
+                  :src="analysisStore.selectedJob.originalImageUrl"
+                  alt="原始图片"
+                  @load="imageLoaded('original')"
+                  @error="handleImageError('original')"
+                  @mouseenter="handleMouseEnter('original')"
+                  @mouseleave="handleMouseLeave('original')"
+                  @wheel="handleWheel('original', $event)"
+                  @mousedown="handleMouseDown('original', $event)"
+                  :style="{
                   transform: `scale(${imageState.original.scale}) translate(${imageState.original.position.x}px, ${imageState.original.position.y}px)`,
                   cursor: imageState.original.isDragging ? 'grabbing' : (imageState.original.scale > 1 ? 'grab' : 'zoom-in')
                 }"
-                :class="{
+                  :class="{
                   loading: !imageStatus.original.loaded && !imageStatus.original.error,
                   dragging: imageState.original.isDragging
                 }"
@@ -67,20 +81,20 @@
             <div class="image-container">
               <h4>标注图片</h4>
               <img
-                v-if="analysisStore.selectedJob.annotatedImageUrl && analysisStore.selectedJob.status === 'completed'"
-                :src="analysisStore.selectedJob.annotatedImageUrl"
-                alt="标注图片"
-                @load="imageLoaded('annotated')"
-                @error="handleImageError('annotated')"
-                @mouseenter="handleMouseEnter('annotated')"
-                @mouseleave="handleMouseLeave('annotated')"
-                @wheel="handleWheel('annotated', $event)"
-                @mousedown="handleMouseDown('annotated', $event)"
-                :style="{
+                  v-if="analysisStore.selectedJob.annotatedImageUrl && analysisStore.selectedJob.status === 'completed'"
+                  :src="analysisStore.selectedJob.annotatedImageUrl"
+                  alt="标注图片"
+                  @load="imageLoaded('annotated')"
+                  @error="handleImageError('annotated')"
+                  @mouseenter="handleMouseEnter('annotated')"
+                  @mouseleave="handleMouseLeave('annotated')"
+                  @wheel="handleWheel('annotated', $event)"
+                  @mousedown="handleMouseDown('annotated', $event)"
+                  :style="{
                   transform: `scale(${imageState.annotated.scale}) translate(${imageState.annotated.position.x}px, ${imageState.annotated.position.y}px)`,
                   cursor: imageState.annotated.isDragging ? 'grabbing' : (imageState.annotated.scale > 1 ? 'grab' : 'zoom-in')
                 }"
-                :class="{
+                  :class="{
                   loading: !imageStatus.annotated.loaded && !imageStatus.annotated.error,
                   dragging: imageState.annotated.isDragging
                 }"
@@ -92,6 +106,7 @@
               <p v-if="analysisStore.selectedJob.status === 'processing'" class="status-processing">处理中...</p>
               <p v-else-if="analysisStore.selectedJob.status === 'failed'" class="status-failed error-message">分析失败</p>
               <p v-else-if="analysisStore.selectedJob.status === 'completed' && !analysisStore.selectedJob.annotatedImageUrl" class="error-message image-error">标注图片URL为空</p>
+              <p v-else-if="!(analysisStore.selectedJob.status!=='completed'||analysisStore.selectedJob.annotatedImageUrl)" class="status-completed">分析完成</p>
               <p v-else-if="imageStatus.annotated.error" class="error-message image-error">无法加载标注图片</p>
               <p v-else-if="analysisStore.selectedJob.status !== 'completed' && !analysisStore.selectedJob.annotatedImageUrl">暂无标注图片</p>
             </div>
@@ -101,13 +116,13 @@
             <p><strong>状态:</strong>
               <span class="status-tag" :class="`status-${analysisStore.selectedJob.status}`">
                        {{ translateStatus(analysisStore.selectedJob.status) }}
-                   </span>
+              </span>
             </p>
             <div class="result-links">
-            <a v-if="analysisStore.selectedJob.resultJsonUrl && analysisStore.selectedJob.status === 'completed'" :href="analysisStore.selectedJob.resultJsonUrl" target="_blank" download class="download-button json">下载 JSON 结果</a>
-            <button v-if="analysisStore.selectedJob.status === 'completed'" @click="openSingleDownloadDialog" class="download-button excel">下载 Excel 报告</button>
-            <span v-if="analysisStore.selectedJob.status !== 'completed' && analysisStore.selectedJob.resultJsonUrl" class="disabled-links-note">(结果将在任务完成后可下载)</span>
-          </div>
+              <a v-if="analysisStore.selectedJob.resultJsonUrl && analysisStore.selectedJob.status === 'completed'" :href="analysisStore.selectedJob.resultJsonUrl" target="_blank" download class="download-button json">下载 JSON 结果</a>
+              <button v-if="analysisStore.selectedJob.status === 'completed'" @click="openSingleDownloadDialog" class="download-button excel">下载 Excel 报告</button>
+              <span v-if="analysisStore.selectedJob.status !== 'completed' && analysisStore.selectedJob.resultJsonUrl" class="disabled-links-note">(结果将在任务完成后可下载)</span>
+            </div>
           </div>
         </section>
         <section class="detail-section card placeholder" v-else>
@@ -123,27 +138,68 @@
               </button>
             </div>
           </div>
-          <ul v-if="analysisStore.historyList.length > 0" class="job-list">
-            <li
-              v-for="job in analysisStore.historyList"
-              :key="job.analysisId"
-              class="job-item"
-              :class="{ 'selected': analysisStore.selectedJob?.analysisId === job.analysisId }"
-            >
-              <div class="job-info" @click="selectJob(job)">
-                <span class="filename">{{ job.originalFilename }}</span>
-                <span class="timestamp">{{ formatDate(job.createdAt) }}</span>
-                <span class="status-indicator" :class="`status-${job.status}`" :title="translateStatus(job.status)"></span>
-              </div>
-              <button
-                @click="deleteJob(job.analysisId, job.originalFilename)"
-                :disabled="analysisStore.isLoading"
-                class="delete-button"
-                title="删除记录"
+          <ul v-if="groupedHistory.length > 0" class="job-list">
+            <template v-for="group in groupedHistory" :key="group.batchId">
+              <!-- 批次组标题 -->
+              <li
+                  class="batch-item"
+                  :class="{
+                    'expanded': isBatchExpanded(group.batchId),
+                    'selected': !group.hasFolder && analysisStore.selectedJob?.analysisId === group.jobs[0]?.analysisId
+                  }"
+                  @click="handleBatchClick(group)"
               >
-                ×
-              </button>
-            </li>
+                <div class="batch-header">
+                  <span class="batch-icon">
+                    <span v-if="group.hasFolder" class="folder-icon">📁</span>
+                    <span v-else class="file-icon">🖼️</span>
+                  </span>
+                  <span class="batch-label">
+                    <template v-if="group.hasFolder">
+                      文件夹 ({{ group.jobs.length }} 个文件)
+                    </template>
+                    <template v-else>
+                      {{ group.jobs[0]?.originalFilename }}
+                    </template>
+                  </span>
+                  <span class="batch-timestamp">{{ formatDate(group.createdAt) }}</span>
+                  <span class="expand-icon" v-if="group.hasFolder">{{ isBatchExpanded(group.batchId) ? '▼' : '▶' }}</span>
+                  <span v-if="!group.hasFolder" class="status-indicator" :class="`status-${group.jobs[0]?.status}`" :title="translateStatus(group.jobs[0]?.status)"></span>
+                  <button
+                      v-if="!group.hasFolder"
+                      @click.stop="deleteJob(group.jobs[0].analysisId, group.jobs[0].originalFilename)"
+                      :disabled="analysisStore.isLoading"
+                      class="delete-button"
+                      title="删除记录"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <!-- 展开的文件列表（仅当是文件夹且展开时显示） -->
+                <ul v-if="group.hasFolder && isBatchExpanded(group.batchId)" class="batch-content">
+                  <li
+                      v-for="job in group.jobs"
+                      :key="job.analysisId"
+                      class="job-item nested"
+                      :class="{ 'selected': analysisStore.selectedJob?.analysisId === job.analysisId }"
+                  >
+                    <div class="job-info" @click.stop="selectJob(job)">
+                      <span class="filename">{{ job.originalFilename }}</span>
+                      <span class="status-indicator" :class="`status-${job.status}`" :title="translateStatus(job.status)"></span>
+                    </div>
+                    <button
+                        @click.stop="deleteJob(job.analysisId, job.originalFilename)"
+                        :disabled="analysisStore.isLoading"
+                        class="delete-button"
+                        title="删除记录"
+                    >
+                      ×
+                    </button>
+                  </li>
+                </ul>
+              </li>
+            </template>
           </ul>
           <p v-else-if="analysisStore.isLoading">正在加载历史记录...</p>
           <p v-else class="no-jobs-message">暂无分析记录。</p>
@@ -154,30 +210,93 @@
 
     <!-- Excel下载数据项选择弹窗 -->
     <SelectColumns
-      :visible="showDownloadDialog"
-      :download-type="currentDownloadType"
-      :job="analysisStore.selectedJob"
-      @close="closeDownloadDialog"
-      @download="handleExcelDownload"
+        :visible="showDownloadDialog"
+        :download-type="currentDownloadType"
+        :job="analysisStore.selectedJob"
+        @close="closeDownloadDialog"
+        @download="handleExcelDownload"
     />
 
   </div>
 </template>
 
+
 <script setup>
-import { ref, onMounted, reactive, watch } from 'vue';
+import { ref, onMounted, reactive, watch, computed } from 'vue';
 import { useAnalysisStore } from '@/stores/analysis';
+import { useExcelStore } from '@/stores/excel';
 import SelectColumns from '@/components/SelectColumns.vue';
 
 const analysisStore = useAnalysisStore();
-const selectedFile = ref(null);
-
+const excelStore = useExcelStore();
+ref(null);
 // Excel下载弹窗相关状态
 const showDownloadDialog = ref(false);
 const currentDownloadType = ref('summary'); // 'summary' 或 'single'
 
 // 记录已刷新过的任务ID，避免重复刷新
 const refreshedJobs = ref(new Set());
+
+// 当前展开的批次ID
+const expandedBatchIds = ref(new Set());
+
+// 生成批次ID
+const generateBatchId = () => {
+  return 'batch_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+};
+
+// 当前上传批次ID
+const currentBatchId = ref(null);
+
+// 按批次分组的历史记录
+const groupedHistory = computed(() => {
+  const groups = {};
+  analysisStore.historyList.forEach(job => {
+    // 如果有批次ID则使用批次ID，否则使用时间戳作为临时批次
+    const batchId = job.batchId || Math.floor(new Date(job.createdAt).getTime() / 5000).toString();
+    if (!groups[batchId]) {
+      groups[batchId] = {
+        batchId: batchId,
+        jobs: [],
+        createdAt: job.createdAt,
+        hasFolder: false
+      };
+    }
+    groups[batchId].jobs.push(job);
+    // 如果一个批次有多个任务，标记为文件夹
+    if (groups[batchId].jobs.length > 1) {
+      groups[batchId].hasFolder = true;
+    }
+  });
+
+  // 按创建时间倒序排列
+  return Object.values(groups).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+});
+
+// 切换批次展开状态
+const toggleBatch = (batchId) => {
+  if (expandedBatchIds.value.has(batchId)) {
+    expandedBatchIds.value.delete(batchId);
+  } else {
+    expandedBatchIds.value.add(batchId);
+  }
+};
+
+// 判断批次是否展开
+const isBatchExpanded = (batchId) => {
+  return expandedBatchIds.value.has(batchId);
+};
+
+// 处理批次点击
+const handleBatchClick = (group) => {
+  if (group.hasFolder) {
+    // 如果是文件夹，切换展开状态
+    toggleBatch(group.batchId);
+  } else {
+    // 如果是单文件，直接选中任务
+    selectJob(group.jobs[0]);
+  }
+};
 
 // 显示总表下载弹窗
 const openDownloadDialog = () => {
@@ -205,13 +324,13 @@ const closeDownloadDialog = () => {
 const handleExcelDownload = async (downloadData) => {
   if (downloadData.type === 'summary') {
     // 下载总表
-    const success = await analysisStore.downloadExcelSummaryAction(downloadData.columns);
+    const success = await excelStore.downloadExcelSummaryAction(downloadData.columns);
     if (success) {
       console.log('Excel summary download initiated with selected columns:', downloadData.columns);
     }
   } else if (downloadData.type === 'single') {
     // 下载单个任务报告
-    const success = await analysisStore.downloadSingleExcelAction(analysisStore.selectedJob.analysisId, downloadData.columns);
+    const success = await excelStore.downloadSingleExcelAction(analysisStore.selectedJob.analysisId, downloadData.columns);
     if (success) {
       console.log('Single Excel report download initiated with selected columns:', downloadData.columns);
     }
@@ -272,58 +391,151 @@ onMounted(() => {
   analysisStore.fetchHistoryAction();
 });
 
-// 处理文件选择
+// 处理文件选择（支持单文件和多文件选择）
+const selectedFiles = ref([]);
+const selectedFolderFiles = ref([]);
+const folderInput = ref(null);
+
 const handleFileSelect = (event) => {
-  const file = event.target.files[0];
-  if (file) {
-    selectedFile.value = file;
+  const files = Array.from(event.target.files).filter(file => file.type.startsWith('image/'));
+  if (files.length > 0) {
+    selectedFiles.value = files;
     uploadSuccessMessage.value = '';
     analysisStore.setError(null);
   } else {
-    selectedFile.value = null;
+    selectedFiles.value = [];
   }
+};
+
+// 处理文件夹选择
+const handleFolderSelect = (event) => {
+  const files = Array.from(event.target.files).filter(file => file.type.startsWith('image/'));
+  if (files.length > 0) {
+    selectedFolderFiles.value = files;
+    uploadSuccessMessage.value = '';
+    analysisStore.setError(null);
+  } else {
+    selectedFolderFiles.value = [];
+  }
+};
+
+// 处理文件夹上传
+const handleFolderUpload = async () => {
+  if (selectedFolderFiles.value.length === 0) {
+    analysisStore.setError('请先选择文件夹！');
+    return;
+  }
+  uploadSuccessMessage.value = '';
+
+  console.log(`上传文件夹，共 ${selectedFolderFiles.value.length} 个文件`);
+  const response = await analysisStore.uploadFolderAction(selectedFolderFiles.value);
+
+  if (response) {
+    uploadSuccessMessage.value = `已成功提交 ${selectedFolderFiles.value.length} 个文件进行批量处理...`;
+  }
+
+  selectedFolderFiles.value = [];
+  if (folderInput.value) {
+    folderInput.value.value = '';
+  }
+
+  // 上传新文件后清空已刷新任务记录
+  refreshedJobs.value.clear();
+
+  // 开始轮询最新上传任务的状态
+  if (analysisStore.historyList.length > 0) {
+    const latestJob = analysisStore.historyList[0];
+    if (latestJob.status === 'processing') {
+      startPolling(latestJob.analysisId);
+    }
+  }
+};
+
+// 添加轮询，用于检查显示分析结果是否完成
+// 轮询任务状态
+let pollingInterval = null;
+
+const startPolling = (analysisId) => {
+  // 停止之前的轮询
+  if (pollingInterval) {
+    clearInterval(pollingInterval);
+  }
+
+  pollingInterval = setInterval(async () => {
+    await analysisStore.fetchHistoryAction();
+
+    // 检查任务是否完成
+    const job = analysisStore.historyList.find(j => j.analysisId === analysisId);
+    if (job && job.status === 'completed') {
+      // 任务完成，停止轮询
+      clearInterval(pollingInterval);
+      pollingInterval = null;
+      // 选中该任务以显示分析结果
+      analysisStore.selectJobAction(job);
+      uploadSuccessMessage.value = `文件处理完成！`;
+    } else if (job && job.status === 'failed') {
+      // 任务失败，停止轮询
+      clearInterval(pollingInterval);
+      pollingInterval = null;
+      uploadSuccessMessage.value = '';
+    }
+  }, 2000); // 每2秒轮询一次
 };
 
 // 处理文件上传
 const handleFileUpload = async () => {
-  if (!selectedFile.value) {
-    analysisStore.setError('请先选择一个图片文件！');
+  if (selectedFiles.value.length === 0) {
+    analysisStore.setError('请先选择图片文件！');
     return;
   }
   uploadSuccessMessage.value = '';
-  // 注意：目前 selectedModel 尚未传递给后端
-  console.log(`准备上传文件: ${selectedFile.value.name}, 使用模型: ${selectedModel.value}`);
 
-  const success = await analysisStore.uploadFileAction(selectedFile.value);
+  // 生成批次ID
+  currentBatchId.value = generateBatchId();
+  const uploadedCount = [];
 
-  if (success) {
-    uploadSuccessMessage.value = `文件 "${selectedFile.value.name}" 已成功提交后台处理！将刷新历史列表...`;
-    selectedFile.value = null;
-    if (fileInput.value) {
-      fileInput.value.value = '';
+  for (const file of selectedFiles.value) {
+    console.log(`上传文件: ${file.name}, 使用模型: ${selectedModel.value}, 批次ID: ${currentBatchId.value}`);
+    const success = await analysisStore.uploadFileAction(file, currentBatchId.value);
+    if (success) {
+      uploadedCount.push(file.name);
     }
+    // 短暂延迟，避免请求过于频繁
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
 
-    // 上传新文件后清空已刷新任务记录，因为会有新任务加入
-    refreshedJobs.value.clear();
+  if (uploadedCount.length > 0) {
+    if (uploadedCount.length === 1) {
+      uploadSuccessMessage.value = `文件 "${uploadedCount[0]}" 已成功提交后台处理...`;
+    } else {
+      uploadSuccessMessage.value = `已成功提交 ${uploadedCount.length} 个文件进行处理...`;
+    }
+  }
+
+  selectedFiles.value = [];
+  if (fileInput.value) {
+    fileInput.value.value = '';
+  }
+
+  // 上传新文件后清空已刷新任务记录，因为会有新任务加入
+  refreshedJobs.value.clear();
+
+  // 开始轮询最新上传任务的状态
+  if (analysisStore.historyList.length > 0) {
+    const latestJob = analysisStore.historyList[0];
+    if (latestJob.status === 'processing') {
+      startPolling(latestJob.analysisId);
+    }
   }
 };
 
 // 处理选中历史记录
-const selectJob = async (job) => {
+const selectJob = (job) => {
   // 清除上传成功消息，避免切换任务时仍然显示
   uploadSuccessMessage.value = '';
 
-  // 先选中任务
+  // 选中任务
   analysisStore.selectJobAction(job);
-
-  // 每次点击都自动刷新历史记录，获取最新的任务状态
-  await analysisStore.fetchHistoryAction();
-
-  // 重新选中当前任务（确保显示最新的数据）
-  const updatedJob = analysisStore.historyList.find(j => j.analysisId === job.analysisId);
-  if (updatedJob) {
-    analysisStore.selectJobAction(updatedJob);
-  }
 };
 
 // 删除分割记录
@@ -377,7 +589,7 @@ const handleWheel = (type, event) => {
   event.preventDefault();
 
   const delta = event.deltaY > 0 ? -0.1 : 0.1;
-  const newScale = Math.max(0.5, Math.min(3, imageState[type].scale + delta));
+  const newScale = Math.max(0.5, Math.min(5, imageState[type].scale + delta));
 
   imageState[type].scale = parseFloat(newScale.toFixed(2));
 };
@@ -452,12 +664,30 @@ onUnmounted(() => {
   window.removeEventListener('mouseup', handleGlobalMouseUp);
 });
 
-
-
-// 格式化日期
+// 格式化日期 - 确保UTC时间正确转为本地时间
 const formatDate = (date) => {
   if (!date) return '';
-  return new Date(date).toLocaleString('zh-CN', { dateStyle: 'short', timeStyle: 'short', hour12: false });
+  let parsedDate;
+  if (typeof date === 'string') {
+    // 匹配 ISO 8601 格式但不带时区标识的字符串 (如 "2026-07-08T08:18:00")
+    // 以及 "2026-07-08 08:18:00" 这类格式，均视为 UTC 时间
+    const isoPattern = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
+    if (isoPattern.test(date) && !date.endsWith('Z') && !date.includes('+') && !date.includes('GMT')) {
+      // 将空格替换为 T 并附加 Z，强制当作 UTC 时间解析
+      const normalized = date.replace(' ', 'T') + 'Z';
+      parsedDate = new Date(normalized);
+      // 如果解析失败(Invalid Date)，回退到原始字符串
+      if (isNaN(parsedDate.getTime())) {
+        parsedDate = new Date(date);
+      }
+    } else {
+      parsedDate = new Date(date);
+    }
+  } else {
+    parsedDate = new Date(date);
+  }
+  if (isNaN(parsedDate.getTime())) return '';
+  return parsedDate.toLocaleString('zh-CN', { dateStyle: 'short', timeStyle: 'short', hour12: false });
 };
 
 // 翻译状态
@@ -469,45 +699,94 @@ const translateStatus = (status) => {
   return statusMap[status] || status;
 };
 
-
 </script>
 
-<style scoped>
-/* --- 基础样式 --- */
 
+<style scoped>
+/* 基础样式 */
 .dashboard-content { display: flex; flex-direction: column; gap: 20px; }
-.card { background-color: var(--color-surface, #ffffff); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.card { background-color: var(--color-surface, #ffffff); padding: 20px; border-radius: 8px; box-shadow: -1px -1px 3px rgba(0,0,0,0.1); }
 h3 { margin-top: 0; color: var(--color-primary-green-dark, #2e7d32); border-bottom: 2px solid var(--color-primary-green-lightest, #e6f4ea); padding-bottom: 10px; margin-bottom: 20px; }
 .error-message { color: var(--color-error, red); font-size: 0.9em; margin-top: 10px; }
 .success-message { color: var(--color-primary-green-dark, green); font-size: 0.9em; margin-top: 10px; }
+.success-message.inline { margin-top: 0; white-space: nowrap; }
 button { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 1em; transition: background-color 0.2s, opacity 0.2s; }
 button.primary { background-color: var(--color-primary-green, #4caf50); color: white; }
 button.primary:hover:not(:disabled) { background-color: var(--color-primary-green-dark, #2e7d32); }
 button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-allowed; }
 
 /* 上传区域 */
-.upload-controls { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; }
+.upload-controls {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+  margin-bottom: 15px;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* 自定义文件选择按钮样式 */
+.file-input-label, .folder-input-label {
+  position: relative;
+  display: inline-block;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: background-color 0.2s;
+  border: none;
+  background-color: #999;
+  color: white;
+}
+
+.file-input-label:hover:not(:disabled),
+.folder-input-label:hover:not(:disabled) {
+  background-color: #777;
+}
+
+.file-input-label input[type="file"],
+.folder-input-label input[type="file"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.file-input-label:has(input:disabled),
+.folder-input-label:has(input:disabled) {
+  background-color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
 .model-select label { margin-right: 5px; font-size: 0.9em; color: #555; }
 .model-select select { padding: 6px 10px; border-radius: 4px; border: 1px solid #ccc; background-color: white; }
-.upload-button { margin-left: auto; } /* 尝试将按钮推到右边 */
+
+.folder-upload-button {
+  background-color: #2196f3; /* 蓝色区分于普通上传 */
+}
+
+.folder-upload-button:hover:not(:disabled) {
+  background-color: #1976d2;
+}
+
 .loading-indicator { font-style: italic; color: #666; margin-top: 10px; }
 
 
-/* --- 主内容区分栏布局 (左右调整) --- */
+/* 分割内容 */
 .main-area {
   display: flex;
   gap: 20px;
   align-items: flex-start;
 }
 
-/* 右侧历史列表 */
-/* 分割记录区域样式调整 */
+/* 分割记录 */
 .job-list-section {
-  flex: 0 0 350px; /* 右侧栏固定宽度 */
+  flex: 0 0 25%; /* 右侧栏固定宽度 */
   order: 2; /* 显示在右侧 */
-  max-height: calc(100vh - 250px); /* 根据需要调整高度 */
   display: flex;
   flex-direction: column;
+  /* Flexbox 默认会拉伸子元素高度与其他兄弟元素一致 */
 }
 
 .section-header {
@@ -528,7 +807,6 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   gap: 10px;
 }
 
-/* 下载Excel总表按钮样式 - 与Excel报告按钮颜色一致 */
 .download-summary-button {
   background-color: var(--color-primary-green-dark, #2e7d32);
   color: white;
@@ -551,22 +829,118 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   cursor: not-allowed;
 }
 
-
-
 .job-list {
   overflow-y: auto;
-  flex-grow: 1;
+  flex-shrink: 1;
+  max-height: 500px; /* 列表最大高度，避免内容过多时撑满容器 */
   list-style: none;
   padding: 0;
   margin: 0;
 }
-.job-item {
-  border: 1px solid #eee; padding: 10px 15px; margin-bottom: 8px; border-radius: 4px;
-  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+
+/* 批次组样式 */
+.batch-item {
+  border: 1px solid #eee;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  overflow: hidden;
   transition: background-color 0.2s;
 }
-.job-item:hover { background-color: #f9f9f9; }
-.job-item.selected { background-color: var(--color-primary-green-lightest, #e6f4ea); border-left: 4px solid var(--color-primary-green, #4caf50); }
+
+.batch-item:hover {
+  background-color: #f9f9f9;
+}
+
+.batch-item.expanded {
+  background-color: var(--color-primary-green-lightest, #f1f8e9);
+}
+
+.batch-item.selected {
+  background-color: var(--color-primary-green-lightest, #e6f4ea);
+  border-left: 4px solid var(--color-primary-green, #4caf50);
+}
+
+.batch-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 15px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.batch-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.folder-icon {
+  font-size: 18px;
+}
+
+.file-icon {
+  font-size: 16px;
+}
+
+.batch-label {
+  font-weight: 500;
+  flex-grow: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9em;
+}
+
+.batch-timestamp {
+  font-size: 0.8em;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.expand-icon {
+  font-size: 0.75em;
+  color: #666;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.batch-item.expanded .expand-icon {
+  transform: rotate(90deg);
+}
+
+/* 批次内容列表 */
+.batch-content {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background-color: #ffffff;
+  border-top: 1px solid #eee;
+}
+
+/* 任务项样式 */
+.job-item {
+  border: none;
+  padding: 8px 15px 8px 35px;
+  margin-bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  transition: background-color 0.2s;
+}
+
+.job-item:hover {
+  background-color: #f5f5f5;
+}
+
+.job-item.selected {
+  background-color: var(--color-primary-green-lightest, #e6f4ea);
+  border-left: 4px solid var(--color-primary-green, #4caf50);
+}
+
+.job-item.nested {
+  padding-left: 45px;
+}
 
 .job-info {
   display: flex;
@@ -574,12 +948,18 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   gap: 10px;
   flex-grow: 1;
   cursor: pointer;
-  min-width: 0; /* 允许文本溢出 */
+  min-width: 0;
 }
 
-.job-item .filename { font-weight: 500; flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 5px; font-size: 0.9em; }
-.job-item .timestamp { font-size: 0.8em; color: #666; flex-shrink: 0; margin-right: 5px; }
-.job-item .status-indicator { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.job-item .filename {
+  font-weight: 500;
+  flex-grow: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 5px;
+  font-size: 0.9em;
+}
 
 .delete-button {
   background: #dc3545;
@@ -607,8 +987,17 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   opacity: 0.6;
   cursor: not-allowed;
 }
-.status-processing { background-color: #ff9800; }
-.status-failed { background-color: var(--color-error, #dc3545); }
+/* 状态指示器基础样式 */
+.status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-indicator.status-processing { background-color: #ff9800; }      /* 橙色 - 处理中 */
+.status-indicator.status-completed { background-color: #28a745; }        /* 绿色 - 已完成 */
+.status-indicator.status-failed { background-color: var(--color-error, #dc3545); } /* 红色 - 失败 */
 .no-jobs-message { color: #666; text-align: center; padding: 20px; }
 
 /* 左侧详情区域 */
@@ -622,7 +1011,13 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   display: flex; gap: 20px; margin-bottom: 20px; justify-content: space-around;
   flex-wrap: wrap; border-bottom: 1px solid #eee; padding-bottom: 20px;
 }
-.image-container { text-align: center; flex: 1; min-width: 250px; overflow: hidden; /* 隐藏缩放溢出 */ position: relative; }
+.image-container {
+  text-align: center;
+  flex: 1;
+  min-width: 250px;
+  overflow: hidden;
+  position: relative;
+}
 .image-container h4 {
   position: absolute;
   top: 10px;
@@ -652,15 +1047,26 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   cursor: zoom-in;
   transition: transform 0.1s ease;
   transform-origin: center center;
-  user-select: none; /* 防止拖拽时选中文本 */
+  user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
 }
 
 .image-container img.dragging {
-  transition: none; /* 拖拽时禁用过渡动画 */
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); /* 拖拽时显示阴影 */
+  transition: none;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.status-completed { color: #28a745; font-style: italic; }
+
+.status-failed.error-message {
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--color-error, #dc3545);
 }
 
 /* 缩放指示器样式 */
@@ -695,21 +1101,21 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   background: #45a049;
 }
 
-.image-container {
-  position: relative;
-}
-
 .image-container img.loading { opacity: 0.5; }
 .image-error { border: 1px dashed var(--color-error, red); padding: 20px; color: var(--color-error, red); min-height: 100px; display: flex; align-items: center; justify-content: center; }
-.status-processing, .status-failed { color: #666; font-style: italic; }
+.status-processing { color: #666; font-style: italic; }
+
+.status-failed { color: var(--color-error, #dc3545); font-style: italic; }
 
 .job-details { margin-top: 20px; font-size: 0.95em; color: #333; }
 .job-details p { margin-bottom: 8px; }
 .job-details strong { margin-right: 5px; color: #111; }
 
 .status-tag { padding: 3px 8px; border-radius: 12px; font-size: 0.85em; color: white; min-width: 60px; text-align: center; display: inline-block; }
-.status-tag.status-processing { background-color: #ff9800; }
-.status-tag.status-failed { background-color: var(--color-error, #dc3545); }
+.status-tag.status-processing { background-color: #ff9800; }      /* 橙色 - 处理中 */
+/* 绿色 - 已完成 */
+.status-tag.status-completed { background-color: #28a745; } /* 绿色 - 已完成 */
+.status-tag.status-failed { background-color: var(--color-error, #dc3545); } /* 红色 - 失败 */
 
 .result-links { margin-top: 15px; display: flex; gap: 15px; flex-wrap: wrap; }
 .download-button { display: inline-block; padding: 8px 15px; border-radius: 4px; text-decoration: none; color: white !important; font-size: 0.9em; transition: background-color 0.2s; cursor: pointer; border: none; }

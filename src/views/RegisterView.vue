@@ -1,5 +1,6 @@
 <template>
-  <div class="register-view">
+  <div class="register-container">
+    <div class="register-form">
     <h2>注册新账户</h2>
     <form @submit.prevent="handleRegister">
       <div class="form-group">
@@ -29,6 +30,7 @@
     <p>
       已有账户？ <router-link to="/login">返回登录</router-link>
     </p>
+    </div>
   </div>
 </template>
 
@@ -85,14 +87,22 @@ const handleRegister = async () => {
 </script>
 
 <style scoped>
-/* 样式与登录页基本一致 */
-.register-view {
+.register-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.register-form {
   max-width: 400px;
-  margin: 50px auto;
   padding: 20px;
   border: 1px solid #ccc;
   border-radius: 5px;
   text-align: center;
+  background-color: rgba(255, 255, 255, 0.7);
+  width: 100%;
 }
 
 .form-group {

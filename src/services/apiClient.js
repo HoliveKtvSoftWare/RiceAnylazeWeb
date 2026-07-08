@@ -31,7 +31,6 @@ apiClient.interceptors.request.use(
   }
 )
 
-// --- 响应拦截器 ---
 // 处理后端返回的响应或错误
 apiClient.interceptors.response.use(
   (response) => {
@@ -64,7 +63,7 @@ apiClient.interceptors.response.use(
         // 例如 400 Bad Request, 404 Not Found, 403 Forbidden
         // 通常这些错误表示前端发送的数据有问题或权限不足
         // 可以考虑在这里显示一个通用的错误提示给用户
-        // alert(`客户端错误: ${error.response.data?.detail || error.message}`);
+        alert(`客户端错误: ${error.response.data?.detail || error.message}`);
 
       } else if (status >= 500) {
         // --- 处理服务器端错误 (5xx) ---
@@ -77,11 +76,11 @@ apiClient.interceptors.response.use(
       // --- 处理网络错误 (请求已发出，但没有收到响应) ---
       console.error('Network Error:', error.message)
       // 可能是后端服务没启动、网络不通等
-      // alert('网络连接错误，请检查您的网络或稍后再试。');
+      alert('网络连接错误，请检查您的网络或稍后再试。');
     } else {
       // --- 处理请求设置错误 ---
       // 在设置请求时就发生了错误
-      console.error('Request Setup Error:', error.message)
+      // console.error('Request Setup Error:', error.message)
     }
 
     // 对于所有未被特殊处理的错误，继续将错误抛出，

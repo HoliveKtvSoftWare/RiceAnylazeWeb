@@ -30,6 +30,16 @@
             {{ column.label }}
           </label>
         </div>
+
+        <!-- 单位选择 -->
+        <div class="unit-selector">
+          <label class="unit-label">导出单位：</label>
+          <select v-model="selectedUnit" class="unit-dropdown">
+            <option value="um">μm</option>
+            <option value="mm">mm</option>
+            <option value="cm">cm</option>
+          </select>
+        </div>
       </div>
       <div class="modal-footer">
         <button @click="closeDownloadDialog" class="cancel-button">取消</button>
@@ -63,6 +73,7 @@ const emit = defineEmits(['close', 'download']);
 
 // Excel下载弹窗相关状态
 const selectedColumns = ref(['filename']);
+const selectedUnit = ref('um');
 
 // 可下载的数据项配置
 const availableColumns = [
@@ -98,7 +109,8 @@ const downloadExcel = () => {
   emit('download', {
     type: props.downloadType,
     columns: selectedColumns.value,
-    jobId: props.downloadType === 'single' ? props.job?.analysisId : null
+    jobId: props.downloadType === 'single' ? props.job?.analysisId : null,
+    unit: selectedUnit.value
   });
 
   closeDownloadDialog();
@@ -131,7 +143,7 @@ const closeDownloadDialog = () => {
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   width: 90%;
-  max-width: 500px;
+  max-width: 650px;
   max-height: 80vh;
   overflow: hidden;
   display: flex;
@@ -198,7 +210,7 @@ const closeDownloadDialog = () => {
 
 .columns-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
 }
 
@@ -218,6 +230,34 @@ const closeDownloadDialog = () => {
 
 .column-checkbox input {
   margin-right: 8px;
+}
+
+.unit-selector {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+  display: flex;
+  align-items: center;
+}
+
+.unit-label {
+  font-weight: bold;
+  color: #333;
+  margin-right: 10px;
+}
+
+.unit-dropdown {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: white;
+  cursor: pointer;
+}
+
+.unit-dropdown:focus {
+  outline: none;
+  border-color: var(--color-primary-green, #4caf50);
 }
 
 .modal-footer {
