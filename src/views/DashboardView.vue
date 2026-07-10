@@ -209,7 +209,7 @@
     </main>
 
     <!-- Excel下载数据项选择弹窗 -->
-    <SelectColumns
+    <ExcelDownload
         :visible="showDownloadDialog"
         :download-type="currentDownloadType"
         :job="analysisStore.selectedJob"
@@ -225,7 +225,7 @@
 import { ref, onMounted, reactive, watch, computed } from 'vue';
 import { useAnalysisStore } from '@/stores/analysis';
 import { useExcelStore } from '@/stores/excel';
-import SelectColumns from '@/components/SelectColumns.vue';
+import ExcelDownload from '@/components/ExcelDownload.vue';
 
 const analysisStore = useAnalysisStore();
 const excelStore = useExcelStore();
@@ -324,15 +324,15 @@ const closeDownloadDialog = () => {
 const handleExcelDownload = async (downloadData) => {
   if (downloadData.type === 'summary') {
     // 下载总表
-    const success = await excelStore.downloadExcelSummaryAction(downloadData.columns);
+    const success = await excelStore.downloadExcelSummaryAction(downloadData.columns, downloadData.unit);
     if (success) {
-      console.log('Excel summary download initiated with selected columns:', downloadData.columns);
+      console.log('Excel summary download initiated with selected columns:', downloadData.columns, 'unit:', downloadData.unit);
     }
   } else if (downloadData.type === 'single') {
     // 下载单个任务报告
-    const success = await excelStore.downloadSingleExcelAction(analysisStore.selectedJob.analysisId, downloadData.columns);
+    const success = await excelStore.downloadSingleExcelAction(analysisStore.selectedJob.analysisId, downloadData.columns, downloadData.unit);
     if (success) {
-      console.log('Single Excel report download initiated with selected columns:', downloadData.columns);
+      console.log('Single Excel report download initiated with selected columns:', downloadData.columns, 'unit:', downloadData.unit);
     }
   }
 };

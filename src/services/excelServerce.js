@@ -21,11 +21,12 @@ const getExportColumns = () => {
  * 导出单个分析任务到Excel文件
  * @param {string} analysisId - 分析任务ID
  * @param {Array<string>} selectedColumns - 选定的列数组
+ * @param {string} unit - 导出单位（um/mm/cm）
  * @returns {Promise<object>} 包含Excel文件数据的响应
  */
-const exportSingleToExcel = (analysisId, selectedColumns) => {
-    console.debug(`Exporting single analysis ${analysisId} to Excel with columns:`, selectedColumns);
-    return apiClient.post(`/excel/${analysisId}`, { selectedColumns })
+const exportSingleToExcel = (analysisId, selectedColumns, unit) => {
+    console.debug(`Exporting single analysis ${analysisId} to Excel with columns:`, selectedColumns, 'unit:', unit);
+    return apiClient.post(`/excel/${analysisId}`, { selectedColumns, unit })
         .then(response => {
             console.debug('Single Excel export successful');
             return response.data;
@@ -39,11 +40,12 @@ const exportSingleToExcel = (analysisId, selectedColumns) => {
 /**
  * 导出所有分析记录到Excel文件
  * @param {Array<string>} selectedColumns - 选定的列数组
+ * @param {string} unit - 导出单位（um/mm/cm）
  * @returns {Promise<object>} 包含Excel文件数据的响应
  */
-const exportAllToExcel = (selectedColumns) => {
-    console.debug('Exporting all analyses to Excel with columns:', selectedColumns);
-    return apiClient.post('/excel/summary', { selectedColumns })
+const exportAllToExcel = (selectedColumns, unit) => {
+    console.debug('Exporting all analyses to Excel with columns:', selectedColumns, 'unit:', unit);
+    return apiClient.post('/excel/summary', { selectedColumns, unit })
         .then(response => {
             console.debug('All Excel export successful');
             return response.data;

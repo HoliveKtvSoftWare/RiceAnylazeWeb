@@ -13,11 +13,11 @@ export const useExcelStore = defineStore('excel', () => {
     /**
      * 下载单个分析任务的Excel报告
      */
-    async function downloadSingleExcelAction(analysisId, selectedColumns) {
+    async function downloadSingleExcelAction(analysisId, selectedColumns, unit) {
         isLoading.value = true;
         setError(null);
         try {
-            const response = await excelService.exportSingleToExcel(analysisId, selectedColumns);
+            const response = await excelService.exportSingleToExcel(analysisId, selectedColumns, unit);
             if (response.filename && response.content) {
                 const byteCharacters = atob(response.content);
                 const byteNumbers = new Array(byteCharacters.length);
@@ -53,11 +53,11 @@ export const useExcelStore = defineStore('excel', () => {
     /**
      * 下载所有分析记录的Excel总表
      */
-    async function downloadExcelSummaryAction(selectedColumns) {
+    async function downloadExcelSummaryAction(selectedColumns, unit) {
         isLoading.value = true;
         setError(null);
         try {
-            const response = await excelService.exportAllToExcel(selectedColumns);
+            const response = await excelService.exportAllToExcel(selectedColumns, unit);
             if (response.filename && response.content) {
                 const byteCharacters = atob(response.content);
                 const byteNumbers = new Array(byteCharacters.length);
