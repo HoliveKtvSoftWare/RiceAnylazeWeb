@@ -126,7 +126,7 @@
           </div>
         </section>
         <section class="detail-section card placeholder" v-else>
-          <p>请从右侧列表中选择一个分割记录以查看详情。</p>
+          <p>请从右侧列表中选择一个分割记录以查看详情。aaaaa</p>
         </section>
 
         <aside class="job-list-section card">
