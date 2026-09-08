@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, reactive } from 'vue';
 import { analysisService } from '@/services/analysisService'; // 导入分析服务
 
 export const useAnalysisStore = defineStore('analysis', () => {
@@ -7,7 +7,20 @@ export const useAnalysisStore = defineStore('analysis', () => {
   const isLoading = ref(false); // 标记文件上传或获取历史的状态
   const error = ref(null); // 存储操作中的错误信息
   const historyList = ref([]); // 存储从后端获取的完整历史记录
+  /** @type {{analysisId: string, originalFilename: string, originalImageUrl: string, annotatedImageUrl: string, status: string, createdAt: string, batchId?: string} | null} */
   const selectedJob = ref(null); // 存储当前选中的历史记录对象
+
+  const uiTriggers = reactive({
+    selectSingleFile: 0,
+    selectFolder: 0,
+    uploadSingle: 0,
+    uploadFolder: 0,
+  });
+
+  function triggerSelectSingleFile() { uiTriggers.selectSingleFile++; }
+  function triggerSelectFolder() { uiTriggers.selectFolder++; }
+  function triggerUploadSingle() { uiTriggers.uploadSingle++; }
+  function triggerUploadFolder() { uiTriggers.uploadFolder++; }
 
   /**
    * 设置/清除错误信息
@@ -141,6 +154,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     error,
     historyList,
     selectedJob,
+    uiTriggers,
     // Actions
     uploadFileAction,
     uploadFolderAction,
@@ -148,5 +162,9 @@ export const useAnalysisStore = defineStore('analysis', () => {
     selectJobAction,
     setError,
     deleteJobAction,
+    triggerSelectSingleFile,
+    triggerSelectFolder,
+    triggerUploadSingle,
+    triggerUploadFolder,
   };
 });

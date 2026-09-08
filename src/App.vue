@@ -51,7 +51,8 @@ body {
   margin-left: 200px; /* 为侧边栏留出空间 */
   display: flex;
   flex-direction: column;
-  min-height: 100vh; /* 确保内容区至少和屏幕一样高 */
+  min-height: 100vh;
+  max-height: 100vh; /* 确保内容区至少和屏幕一样高 */
 }
 
 /* 仅在登录后应用 margin-left */

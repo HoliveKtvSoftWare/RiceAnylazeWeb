@@ -1,55 +1,60 @@
 <template>
-  <div class="dashboard-view">
-    <main class="dashboard-content">
+  <main class="main-area layout-area layout-area-0">
 
-      <!-- 上部操作面板 -->
-      <section class="">
-        <h3>上传图片进行分割</h3>
-        <div class="upload-controls">
-          <label class="file-input-label">
-            <input type="file" @change="handleFileSelect" accept="image/*" :disabled="analysisStore.isLoading" ref="fileInput" multiple />
-            <span>🖼️选择单张图片</span>
-          </label>
+        <section class="layout-area layout-area-1 upload-sidebar">
+          <div class="upload-controls layout-area layout-area-1-1">
+            <div class="model-select">
+              <label for="model-choice">选择模型:</label>
+              <select id="model-choice" v-model="selectedModel" :disabled="analysisStore.isLoading">
+                <option value="yolov8s-1.pt">YOLOv8s-1</option>
+                <option value="yolov8s.pt">YOLOv8s</option>
+              </select>
+            </div>
 
-          <label class="folder-input-label">
-            <input type="file" @change="handleFolderSelect" :webkitdirectory="true" :mozdirectory="true" :directory="true" accept="image/*" :disabled="analysisStore.isLoading" ref="folderInput" />
-            <span>📁选择文件夹</span>
-          </label>
+            <label class="file-input-label">
+              <input type="file" @change="handleFileSelect" accept="image/*" :disabled="analysisStore.isLoading" ref="fileInput" multiple />
+              <span>🖼️选择单张图片</span>
+            </label>
 
-          <div class="model-select">
-            <label for="model-choice">选择模型:</label>
-            <select id="model-choice" v-model="selectedModel" :disabled="analysisStore.isLoading">
-              <option value="yolov8s.pt">YOLOv8s</option>
-              <option value="yolov8s-1.pt">YOLOv8s-1</option>
-            </select>
+            <label class="folder-input-label">
+              <input type="file" @change="handleFolderSelect" :webkitdirectory="true" :mozdirectory="true" :directory="true" accept="image/*" :disabled="analysisStore.isLoading" ref="folderInput" />
+              <span>📁选择文件夹</span>
+            </label>
+
+            <button @click="handleFileUpload" :disabled="selectedFiles.length === 0 || analysisStore.isLoading" class="primary upload-button">
+              {{ analysisStore.isLoading ? '处理中...' : '上传单张并分割' }}
+            </button>
+
+            <button @click="handleFolderUpload" :disabled="selectedFolderFiles.length === 0 || analysisStore.isLoading" class="primary folder-upload-button">
+              {{ analysisStore.isLoading ? '处理中...' : '上传文件夹并分割' }}
+            </button>
+
           </div>
 
-          <button @click="handleFileUpload" :disabled="selectedFiles.length === 0 || analysisStore.isLoading" class="primary upload-button">
-            {{ analysisStore.isLoading ? '处理中...' : '上传单张并分割' }}
-          </button>
-
-          <button @click="handleFolderUpload" :disabled="selectedFolderFiles.length === 0 || analysisStore.isLoading" class="primary folder-upload-button">
-            {{ analysisStore.isLoading ? '处理中...' : '上传文件夹并分割' }}
-          </button>
-
-          <div v-if="uploadSuccessMessage" class="success-message inline">
-            {{ uploadSuccessMessage }}
+          <div class="job-details layout-area layout-area-1-2">
+            <div v-if="analysisStore.selectedJob" class="result-links layout-area layout-area-1-2-1">
+              <a v-if="analysisStore.selectedJob.resultJsonUrl && analysisStore.selectedJob.status === 'completed'" :href="analysisStore.selectedJob.resultJsonUrl" target="_blank" download class="download-button json">下载 JSON 结果</a>
+              <button v-if="analysisStore.selectedJob.status === 'completed'" @click="openSingleDownloadDialog" class="download-button excel">下载 Excel 报告</button>
+              <span v-if="analysisStore.selectedJob.status !== 'completed' && analysisStore.selectedJob.resultJsonUrl" class="disabled-links-note">(结果将在任务完成后可下载)</span>
+            </div>
+            <p><strong>状态:</strong>
+              <span v-if="analysisStore.selectedJob" class="status-tag" :class="`status-${analysisStore.selectedJob.status}`">
+                       {{ translateStatus(analysisStore.selectedJob.status) }}
+              </span>
+            </p>
           </div>
-        </div>
 
-        <div v-if="analysisStore.isLoading && !uploadSuccessMessage" class="loading-indicator">
-          正在上传或加载历史...
-        </div>
-        <div v-if="analysisStore.error" class="error-message">
-          操作失败: {{ analysisStore.error }}
-        </div>
-      </section>
+          <div v-if="analysisStore.isLoading && !uploadSuccessMessage" class="loading-indicator">
+            正在上传或加载历史...
+          </div>
+          <div v-if="analysisStore.error" class="error-message">
+            操作失败: {{ analysisStore.error }}
+          </div>
+        </section>
 
-      <!-- 分割内容显示区域 -->
-      <div class="main-area">
-        <section class="detail-section card" v-if="analysisStore.selectedJob">
-          <h3>分割详情: {{ analysisStore.selectedJob.originalFilename }}</h3>
-          <div class="image-comparison">
+        <div class="image-group layout-area layout-area-3" v-if="analysisStore.selectedJob">
+          <div class="image-section-wrapper">
+            <section class="image-section card layout-area layout-area-3-a">
             <div class="image-container">
               <h4>原始图片</h4>
               <img
@@ -78,6 +83,11 @@
               <p v-if="imageStatus.original.error" class="error-message image-error">无法加载原始图片</p>
               <p v-else-if="!analysisStore.selectedJob.originalImageUrl">无原始图片记录</p>
             </div>
+          </section>
+          </div>
+
+          <div class="image-section-wrapper">
+          <section class="image-section card layout-area layout-area-3-b">
             <div class="image-container">
               <h4>标注图片</h4>
               <img
@@ -110,35 +120,52 @@
               <p v-else-if="imageStatus.annotated.error" class="error-message image-error">无法加载标注图片</p>
               <p v-else-if="analysisStore.selectedJob.status !== 'completed' && !analysisStore.selectedJob.annotatedImageUrl">暂无标注图片</p>
             </div>
+          </section>
           </div>
-          <div class="job-details">
-            <p><strong>提交时间:</strong> {{ formatDate(analysisStore.selectedJob.createdAt) }}</p>
-            <p><strong>状态:</strong>
-              <span class="status-tag" :class="`status-${analysisStore.selectedJob.status}`">
-                       {{ translateStatus(analysisStore.selectedJob.status) }}
-              </span>
-            </p>
-            <div class="result-links">
-              <a v-if="analysisStore.selectedJob.resultJsonUrl && analysisStore.selectedJob.status === 'completed'" :href="analysisStore.selectedJob.resultJsonUrl" target="_blank" download class="download-button json">下载 JSON 结果</a>
-              <button v-if="analysisStore.selectedJob.status === 'completed'" @click="openSingleDownloadDialog" class="download-button excel">下载 Excel 报告</button>
-              <span v-if="analysisStore.selectedJob.status !== 'completed' && analysisStore.selectedJob.resultJsonUrl" class="disabled-links-note">(结果将在任务完成后可下载)</span>
-            </div>
-          </div>
-        </section>
-        <section class="detail-section card placeholder" v-else>
-          <p>请从右侧列表中选择一个分割记录以查看详情。aaaaa</p>
+        </div>
+
+        <section class="image-group card placeholder layout-area layout-area-3" v-else>
+          <p>请从右侧列表中选择一个分割记录以查看详情。</p>
         </section>
 
-        <aside class="job-list-section card">
-          <div class="section-header">
-            <h3>分割记录</h3>
-            <div class="section-actions">
-              <button @click="openDownloadDialog" :disabled="analysisStore.isLoading || analysisStore.historyList.length === 0" class="download-summary-button">
-                {{ analysisStore.isLoading ? '处理中...' : '下载Excel总表' }}
-              </button>
+        <div class="right-panel layout-area layout-area-4">
+          <section class="upper-panel card layout-area layout-area-4-a">
+            <h3>待处理文件</h3>
+            <div v-if="selectedFiles.length > 0" class="pending-group">
+              <div class="pending-group-title">单张文件 ({{ selectedFiles.length }})</div>
+              <ul class="pending-list">
+                <li v-for="(file, index) in selectedFiles" :key="'s-'+index" class="pending-item">
+                  <span class="pending-icon">🖼️</span>
+                  <span class="pending-name" :title="file.name">{{ file.name }}</span>
+                  <span class="pending-size">({{ (file.size / 1024).toFixed(1) }} KB)</span>
+                  <button @click="removeSelectedFile(index)" class="pending-remove" title="移除">×</button>
+                </li>
+              </ul>
             </div>
-          </div>
-          <ul v-if="groupedHistory.length > 0" class="job-list">
+            <div v-if="selectedFolderFiles.length > 0" class="pending-group">
+              <div class="pending-group-title">文件夹文件 ({{ selectedFolderFiles.length }})</div>
+              <ul class="pending-list">
+                <li v-for="(file, index) in selectedFolderFiles" :key="'f-'+index" class="pending-item">
+                  <span class="pending-icon">🖼️</span>
+                  <span class="pending-name" :title="file.name">{{ file.name }}</span>
+                  <span class="pending-size">({{ (file.size / 1024).toFixed(1) }} KB)</span>
+                  <button @click="removeFolderFile(index)" class="pending-remove" title="移除">×</button>
+                </li>
+              </ul>
+            </div>
+            <p v-if="selectedFiles.length === 0 && selectedFolderFiles.length === 0" class="no-pending">暂无待处理文件</p>
+          </section>
+
+          <aside class="job-list-section card layout-area layout-area-4-b">
+            <div class="section-header layout-area layout-area-4-1">
+              <h3>分割记录</h3>
+              <div class="section-actions layout-area layout-area-4-1-1">
+                <button @click="openDownloadDialog" :disabled="analysisStore.isLoading || analysisStore.historyList.length === 0" class="download-summary-button">
+                  {{ analysisStore.isLoading ? '处理中...' : '下载Excel总表' }}
+                </button>
+              </div>
+            </div>
+            <ul v-if="groupedHistory.length > 0" class="job-list layout-area layout-area-4-2">
             <template v-for="group in groupedHistory" :key="group.batchId">
               <!-- 批次组标题 -->
               <li
@@ -163,7 +190,14 @@
                     </template>
                   </span>
                   <span class="batch-timestamp">{{ formatDate(group.createdAt) }}</span>
-                  <span class="expand-icon" v-if="group.hasFolder">{{ isBatchExpanded(group.batchId) ? '▼' : '▶' }}</span>
+                  <button
+                      v-if="group.hasFolder"
+                      @click.stop="toggleBatch(group.batchId)"
+                      class="expand-button"
+                      title="展开/收起"
+                  >
+                    <span class="expand-icon">{{ isBatchExpanded(group.batchId) ? '▼' : '▶' }}</span>
+                  </button>
                   <span v-if="!group.hasFolder" class="status-indicator" :class="`status-${group.jobs[0]?.status}`" :title="translateStatus(group.jobs[0]?.status)"></span>
                   <button
                       v-if="!group.hasFolder"
@@ -176,7 +210,7 @@
                   </button>
                 </div>
 
-                <!-- 展开的文件列表（仅当是文件夹且展开时显示） -->
+                <!-- 展开的文件列表-->
                 <ul v-if="group.hasFolder && isBatchExpanded(group.batchId)" class="batch-content">
                   <li
                       v-for="job in group.jobs"
@@ -203,21 +237,19 @@
           </ul>
           <p v-else-if="analysisStore.isLoading">正在加载历史记录...</p>
           <p v-else class="no-jobs-message">暂无分析记录。</p>
-        </aside>
-      </div>
+          </aside>
+        </div>
 
-    </main>
+  </main>
 
-    <!-- Excel下载数据项选择弹窗 -->
-    <ExcelDownload
-        :visible="showDownloadDialog"
-        :download-type="currentDownloadType"
-        :job="analysisStore.selectedJob"
-        @close="closeDownloadDialog"
-        @download="handleExcelDownload"
-    />
-
-  </div>
+  <!-- Excel下载数据项选择弹窗 -->
+  <ExcelDownload
+      :visible="showDownloadDialog"
+      :download-type="currentDownloadType"
+      :job="analysisStore.selectedJob"
+      @close="closeDownloadDialog"
+      @download="handleExcelDownload"
+  />
 </template>
 
 
@@ -405,6 +437,14 @@ const handleFileSelect = (event) => {
   } else {
     selectedFiles.value = [];
   }
+};
+
+const removeSelectedFile = (index) => {
+  selectedFiles.value.splice(index, 1);
+};
+
+const removeFolderFile = (index) => {
+  selectedFolderFiles.value.splice(index, 1);
 };
 
 // 处理文件夹选择
@@ -704,7 +744,6 @@ const translateStatus = (status) => {
 
 <style scoped>
 /* 基础样式 */
-.dashboard-content { display: flex; flex-direction: column; gap: 20px; }
 .card { background-color: var(--color-surface, #ffffff); padding: 20px; border-radius: 8px; box-shadow: -1px -1px 3px rgba(0,0,0,0.1); }
 h3 { margin-top: 0; color: var(--color-primary-green-dark, #2e7d32); border-bottom: 2px solid var(--color-primary-green-lightest, #e6f4ea); padding-bottom: 10px; margin-bottom: 20px; }
 .error-message { color: var(--color-error, red); font-size: 0.9em; margin-top: 10px; }
@@ -715,23 +754,35 @@ button.primary { background-color: var(--color-primary-green, #4caf50); color: w
 button.primary:hover:not(:disabled) { background-color: var(--color-primary-green-dark, #2e7d32); }
 button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-allowed; }
 
-/* 上传区域 */
+/* 左侧上传侧栏 */
+.upload-sidebar {
+  background-color: var(--color-surface, #ffffff);
+  padding: 0;
+  border-radius: 8px;
+  box-shadow: -1px -1px 3px rgba(0,0,0,0.1);
+  flex: 0 0 180px;
+  order: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 上传按钮组 - 竖向列布局 */
 .upload-controls {
   display: flex;
-  align-items: center;
-  gap: 15px;
-  flex-wrap: wrap;
-  margin-bottom: 15px;
-  padding: 15px;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  padding: 12px 5px;
 }
 
 /* 自定义文件选择按钮样式 */
 .file-input-label, .folder-input-label {
   position: relative;
-  display: inline-block;
-  padding: 8px 12px;
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.9em;
@@ -739,6 +790,8 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   border: none;
   background-color: #999;
   color: white;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 .file-input-label:hover:not(:disabled),
@@ -759,8 +812,15 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   cursor: not-allowed;
   opacity: 0.6;
 }
-.model-select label { margin-right: 5px; font-size: 0.9em; color: #555; }
-.model-select select { padding: 6px 10px; border-radius: 4px; border: 1px solid #ccc; background-color: white; }
+.model-select label { margin-right: 5px; font-size: 0.9em; color: #555; display: block; margin-bottom: 5px; }
+.model-select select { padding: 8px 10px; border-radius: 4px; border: 1px solid #ccc; background-color: white; width: 100%; box-sizing: border-box; }
+
+.upload-button,
+.folder-upload-button {
+  width: 100%;
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
 
 .folder-upload-button {
   background-color: #2196f3; /* 蓝色区分于普通上传 */
@@ -777,16 +837,118 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 .main-area {
   display: flex;
   gap: 20px;
-  align-items: flex-start;
+  align-items: stretch;
+  height: 100%;
+  max-height: 800px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 右侧面板（纵向布局） */
+.right-panel {
+  flex: 49;
+  order: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* 上方区域 */
+.upper-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.upper-panel h3 {
+  margin: 0;
+}
+
+.pending-group {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pending-group-title {
+  font-size: 0.85em;
+  color: #666;
+  margin-bottom: 4px;
+  padding: 4px 8px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.pending-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.pending-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  font-size: 0.85em;
+  border-bottom: 1px solid #eee;
+}
+
+.pending-item:hover {
+  background: #f9f9f9;
+}
+
+.pending-icon {
+  flex-shrink: 0;
+}
+
+.pending-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pending-size {
+  color: #888;
+  flex-shrink: 0;
+}
+
+.pending-remove {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 1.1em;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.pending-remove:hover {
+  color: #dc3545;
+}
+
+.no-pending {
+  color: #888;
+  text-align: center;
+  padding: 20px;
+  font-style: italic;
+  margin: 0;
 }
 
 /* 分割记录 */
 .job-list-section {
-  flex: 0 0 25%; /* 右侧栏固定宽度 */
-  order: 2; /* 显示在右侧 */
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  /* Flexbox 默认会拉伸子元素高度与其他兄弟元素一致 */
 }
 
 .section-header {
@@ -897,10 +1059,25 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   flex-shrink: 0;
 }
 
-.expand-icon {
+.expand-button {
+  background: none;
+  border: none;
   font-size: 0.75em;
   color: #666;
   flex-shrink: 0;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.expand-button:hover {
+  color: #333;
+  background-color: #f0f0f0;
+}
+
+.expand-icon {
+  display: inline-block;
   transition: transform 0.2s;
 }
 
@@ -1000,23 +1177,54 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 .status-indicator.status-failed { background-color: var(--color-error, #dc3545); } /* 红色 - 失败 */
 .no-jobs-message { color: #666; text-align: center; padding: 20px; }
 
-/* 左侧详情区域 */
-.detail-section {
-  flex-grow: 1; /* 占据主要空间 */
-  order: 1; /* 显示在左侧 */
+/* 图片组容器（纵向排列） */
+.image-group {
+  flex: 51;
+  order: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 0 5px;
 }
-.detail-section.placeholder { color: #888; text-align: center; padding: 50px 20px; font-style: italic; }
 
-.image-comparison {
-  display: flex; gap: 20px; margin-bottom: 20px; justify-content: space-around;
-  flex-wrap: wrap; border-bottom: 1px solid #eee; padding-bottom: 20px;
+.image-section-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 5px;
+  min-height: 0;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.image-group.placeholder { color: #888; text-align: center; padding: 50px 20px; font-style: italic; display: block; overflow: visible; }
+
+.image-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0;
+  box-shadow: none;
 }
 .image-container {
   text-align: center;
-  flex: 1;
-  min-width: 250px;
+  width: 100%;
   overflow: hidden;
   position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.image-container > p {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  margin: 0;
+  box-sizing: border-box;
 }
 .image-container h4 {
   position: absolute;
@@ -1035,12 +1243,11 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 }
 .image-container img {
   max-width: 100%;
-  height: auto;
-  max-height: 350px;
+  height: 100%;
+  max-height: 100%;
   object-fit: contain;
   border: 1px solid #ddd;
   border-radius: 4px;
-  min-height: 200px;
   background-color: #f0f0f0;
   display: block;
   margin: 0 auto;
@@ -1058,14 +1265,9 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
-.status-completed { color: #28a745; font-style: italic; }
+.status-completed { color: #28a745; font-style: italic; text-align: center; }
 
 .status-failed.error-message {
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
   color: var(--color-error, #dc3545);
 }
 
@@ -1102,14 +1304,14 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 }
 
 .image-container img.loading { opacity: 0.5; }
-.image-error { border: 1px dashed var(--color-error, red); padding: 20px; color: var(--color-error, red); min-height: 100px; display: flex; align-items: center; justify-content: center; }
-.status-processing { color: #666; font-style: italic; }
+.image-error { border: 1px dashed var(--color-error, red); padding: 20px; color: var(--color-error, red); }
+.status-processing { color: #666; font-style: italic; text-align: center; }
 
 .status-failed { color: var(--color-error, #dc3545); font-style: italic; }
 
-.job-details { margin-top: 20px; font-size: 0.95em; color: #333; }
+.job-details { margin-top: 20px; font-size: 0.95em; color: #333; padding: 8px; }
 .job-details p { margin-bottom: 8px; }
-.job-details strong { margin-right: 5px; color: #111; }
+.job-details strong { margin-right: 5px; color: #111; margin-left: 8px; }
 
 .status-tag { padding: 3px 8px; border-radius: 12px; font-size: 0.85em; color: white; min-width: 60px; text-align: center; display: inline-block; }
 .status-tag.status-processing { background-color: #ff9800; }      /* 橙色 - 处理中 */
@@ -1117,8 +1319,8 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 .status-tag.status-completed { background-color: #28a745; } /* 绿色 - 已完成 */
 .status-tag.status-failed { background-color: var(--color-error, #dc3545); } /* 红色 - 失败 */
 
-.result-links { margin-top: 15px; display: flex; gap: 15px; flex-wrap: wrap; }
-.download-button { display: inline-block; padding: 8px 15px; border-radius: 4px; text-decoration: none; color: white !important; font-size: 0.9em; transition: background-color 0.2s; cursor: pointer; border: none; }
+.result-links { margin-top: 15px; display: flex; flex-direction: column; gap: 10px; }
+.download-button { display: block; width: 100%; padding: 10px 12px; border-radius: 4px; text-decoration: none; color: white !important; font-size: 0.9em; transition: background-color 0.2s; cursor: pointer; border: none; box-sizing: border-box; text-align: center; }
 .download-button.excel { background-color: var(--color-primary-green-dark, #2e7d32); }
 .download-button.excel:hover { background-color: #1b5e20; }
 .download-button.json { background-color: #ffa000; }
