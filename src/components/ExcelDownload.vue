@@ -2,7 +2,7 @@
   <div v-if="visible" class="modal-overlay" @click="closeDownloadDialog">
     <div class="modal-content" @click.stop>
       <div class="modal-header">
-        <h3>{{ downloadType === 'summary' ? '选择下载数据项 - 总表' : `选择下载数据项 - ${job?.originalFilename}` }}</h3>
+        <h3>{{ dialogTitle }}</h3>
         <button class="close-button" @click="closeDownloadDialog">×</button>
       </div>
       <div class="modal-body">
@@ -44,7 +44,7 @@
       <div class="modal-footer">
         <button @click="closeDownloadDialog" class="cancel-button">取消</button>
         <button @click="downloadExcel" class="confirm-button" :disabled="selectedColumns.length === 0">
-          {{ downloadType === 'summary' ? '下载总表' : '下载报告' }} ({{ selectedColumns.length }} 项)
+          {{ confirmButtonText }} ({{ selectedColumns.length }} 项)
         </button>
       </div>
     </div>
@@ -52,7 +52,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
 const props = defineProps({
   visible: {
@@ -61,15 +61,37 @@ const props = defineProps({
   },
   downloadType: {
     type: String,
-    default: 'summary'
+    default: 'single'
   },
   job: {
     type: Object,
     default: null
+  },
+  selectedCount: {
+    type: Number,
+    default: 1
   }
 });
 
 const emit = defineEmits(['close', 'download']);
+
+const dialogTitle = computed(() => {
+  switch (props.downloadType) {
+    case 'summary': return '选择下载数据项 - 总表';
+    case 'batch': return `选择下载数据项 - 批量 (${props.selectedCount} 个文件)`;
+    case 'single':
+    default: return `选择下载数据项 - ${props.job?.originalFilename || '单个文件'}`;
+  }
+});
+
+const confirmButtonText = computed(() => {
+  switch (props.downloadType) {
+    case 'summary': return '下载总表';
+    case 'batch': return '下载批量报告';
+    case 'single':
+    default: return '下载报告';
+  }
+});
 
 // Excel下载弹窗相关状态
 const selectedColumns = ref(['filename']);
@@ -273,7 +295,7 @@ const closeDownloadDialog = () => {
   padding: 10px 20px;
   border: 1px solid #ccc;
   background: white;
-  border-radius: 4px;
+  border-radius: 2px;
   cursor: pointer;
   color: #666;
 }
@@ -287,7 +309,7 @@ const closeDownloadDialog = () => {
   border: none;
   background-color: var(--color-primary-green, #4caf50);
   color: white;
-  border-radius: 4px;
+  border-radius: 2px;
   cursor: pointer;
 }
 

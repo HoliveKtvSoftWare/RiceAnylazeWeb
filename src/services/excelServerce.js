@@ -43,6 +43,26 @@ const exportSingleToExcel = (analysisId, selectedColumns, unit) => {
  * @param {string} unit - 导出单位（um/mm/cm）
  * @returns {Promise<object>} 包含Excel文件数据的响应
  */
+/**
+ * 导出多个分析任务到Excel文件
+ * @param {Array<string>} analysisIds - 分析任务ID数组
+ * @param {Array<string>} selectedColumns - 选定的列数组
+ * @param {string} unit - 导出单位（um/mm/cm）
+ * @returns {Promise<object>} 包含Excel文件数据的响应
+ */
+const batchExportToExcel = (analysisIds, selectedColumns, unit) => {
+    console.debug(`Batch exporting ${analysisIds.length} analyses to Excel with columns:`, selectedColumns, 'unit:', unit);
+    return apiClient.post('/excel/batch', { analysisIds, selectedColumns, unit })
+        .then(response => {
+            console.debug('Batch Excel export successful');
+            return response.data;
+        })
+        .catch(error => {
+            console.error('Failed to batch export Excel:', error.response?.data || error.message);
+            throw error;
+        });
+};
+
 const exportAllToExcel = (selectedColumns, unit) => {
     console.debug('Exporting all analyses to Excel with columns:', selectedColumns, 'unit:', unit);
     return apiClient.post('/excel/summary', { selectedColumns, unit })
@@ -60,5 +80,6 @@ const exportAllToExcel = (selectedColumns, unit) => {
 export const excelService = {
     getExportColumns, // 获取可导出的列配置
     exportSingleToExcel, // 导出单个分析任务到Excel
+    batchExportToExcel, // 导出多个分析任务到Excel
     exportAllToExcel, // 导出所有分析记录到Excel
 };

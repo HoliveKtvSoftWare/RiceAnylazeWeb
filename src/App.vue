@@ -71,11 +71,13 @@ body {
 
 .page-content {
   padding: 20px;
-  flex-grow: 1; /* 占据剩余垂直空间 */
-  background-color: #ffffff; /* 内容区白色背景 */
-  margin: 20px; /* 与周围元素留出间距 */
-  border-radius: 8px; /* 轻微圆角 */
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* 添加轻微阴影 */
+  flex-grow: 1;
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  margin: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
 /* 修正未登录页面的样式，使其居中 */

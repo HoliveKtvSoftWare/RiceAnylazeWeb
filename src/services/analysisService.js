@@ -1,5 +1,19 @@
 import apiClient from './apiClient'; // 导入配置好的axios实例
 
+const toCamelCase = (str) => str.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
+
+const transformKeys = (obj) => {
+  if (Array.isArray(obj)) return obj.map(transformKeys);
+  if (obj && typeof obj === 'object') {
+    const result = {};
+    for (const key of Object.keys(obj)) {
+      result[toCamelCase(key)] = transformKeys(obj[key]);
+    }
+    return result;
+  }
+  return obj;
+};
+
 /**
  * 上传图片文件进行分析
  * @param {File} file - 用户选择的图片文件对象
@@ -19,45 +33,26 @@ const uploadFile = (file, batchId = null) => {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
-  }).then(response => response.data); // 成功时只返回 data 部分
+  }).then(response => transformKeys(response.data));
 };
 
 /**
- * 上传文件夹中的图片进行批量分析
+ * 批量上传文件夹中的图片进行分析
  * @param {FileList|Array} files - 文件夹中的文件列表
- * @returns {Promise<Array<object>>} 所有文件上传结果的数组
+ * @returns {Promise<object>} 后端返回的批量上传结果
  */
 const uploadFolder = (files) => {
-  // 生成唯一的批次ID
-  const batchId = 'batch_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-  console.debug(`Uploading folder with batch ID: ${batchId}, total files: ${files.length}`);
-
-  // 将文件列表转换为数组（处理 FileList 对象）
   const fileArray = Array.from(files);
-
-  // 逐个上传文件，使用相同的批次ID
-  const uploadPromises = fileArray.map((file, index) => {
-    // 添加短暂延迟，避免请求过于频繁
-    return new Promise(resolve => setTimeout(resolve, index * 200))
-      .then(() => uploadFile(file, batchId))
-      .then(result => {
-        console.debug(`File uploaded successfully: ${file.name}`);
-        return { success: true, file: file.name, result };
-      })
-      .catch(error => {
-        console.error(`Failed to upload file: ${file.name}`, error);
-        return { success: false, file: file.name, error: error.message };
-      });
+  const formData = new FormData();
+  fileArray.forEach(file => {
+    formData.append('files', file);
   });
 
-  // 等待所有上传完成
-  return Promise.all(uploadPromises)
-    .then(results => {
-      const successCount = results.filter(r => r.success).length;
-      const failCount = results.filter(r => !r.success).length;
-      console.debug(`Folder upload completed: ${successCount} succeeded, ${failCount} failed`);
-      return { batchId, results, successCount, failCount };
-    });
+  return apiClient.post('/analysis/upload/batch', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }).then(response => transformKeys(response.data));
 };
 
 /**
@@ -70,9 +65,8 @@ const getHistory = () => {
   // apiClient 的请求拦截器会自动添加 Authorization Token
   return apiClient.get('/analysis/history')
       .then(response => {
-        console.debug('History fetched successfully:', response.data); // 添加日志
-        // 后端返回的是一个包含历史记录对象的数组
-        return response.data;
+        console.debug('History fetched successfully:', response.data);
+        return transformKeys(response.data);
       })
       .catch(error => {
         console.error('Failed to fetch history:', error.response?.data || error.message); // 添加日志
@@ -87,22 +81,34 @@ const getHistory = () => {
  */
 const deleteJob = (analysisId) => {
   console.debug(`Deleting job with ID: ${analysisId}`);
-  // 发送DELETE请求到/analysis/delete/{analysis_id}
   return apiClient.delete(`/analysis/delete/${analysisId}`)
-      .then(response => {
-        console.debug('Job deleted successfully');
-        return response.data;
-      })
+      .then(response => response.data)
       .catch(error => {
         console.error('Failed to delete job:', error.response?.data || error.message);
         throw error;
       });
 };
 
+/**
+ * 批量删除分析记录
+ * @param {Array<string>} analysisIds - 要删除的分析记录ID数组
+ * @returns {Promise<object>} 批量删除操作的结果
+ */
+const batchDeleteJobs = (analysisIds) => {
+  console.debug(`Batch deleting ${analysisIds.length} jobs`);
+  return apiClient.post('/analysis/delete/batch', { analysisIds })
+      .then(response => response.data)
+      .catch(error => {
+        console.error('Failed to batch delete jobs:', error.response?.data || error.message);
+        throw error;
+      });
+};
+
 // 导出服务对象
 export const analysisService = {
-  uploadFile, // 上传图片文件进行分析
-  uploadFolder, // 上传文件夹进行批量分析
-  getHistory, // 获取分析历史记录
-  deleteJob, // 删除功能
+  uploadFile,
+  uploadFolder,
+  getHistory,
+  deleteJob,
+  batchDeleteJobs,
 };

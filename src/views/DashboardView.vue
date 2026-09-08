@@ -1,8 +1,9 @@
 <template>
-  <main class="main-area layout-area layout-area-0">
+  <main class="main-area">
 
-        <section class="layout-area layout-area-1 upload-sidebar">
-          <div class="upload-controls layout-area layout-area-1-1">
+        <section class="upload-sidebar">
+          <h3 class="sidebar-title">操作栏</h3>
+          <div class="upload-controls">
             <div class="model-select">
               <label for="model-choice">选择模型:</label>
               <select id="model-choice" v-model="selectedModel" :disabled="analysisStore.isLoading">
@@ -29,32 +30,34 @@
               {{ analysisStore.isLoading ? '处理中...' : '上传文件夹并分割' }}
             </button>
 
+            <div v-if="analysisStore.error" class="error-message">
+              操作失败: {{ analysisStore.error }}
+            </div>
+
           </div>
 
-          <div class="job-details layout-area layout-area-1-2">
-            <div v-if="analysisStore.selectedJob" class="result-links layout-area layout-area-1-2-1">
-              <a v-if="analysisStore.selectedJob.resultJsonUrl && analysisStore.selectedJob.status === 'completed'" :href="analysisStore.selectedJob.resultJsonUrl" target="_blank" download class="download-button json">下载 JSON 结果</a>
-              <button v-if="analysisStore.selectedJob.status === 'completed'" @click="openSingleDownloadDialog" class="download-button excel">下载 Excel 报告</button>
-              <span v-if="analysisStore.selectedJob.status !== 'completed' && analysisStore.selectedJob.resultJsonUrl" class="disabled-links-note">(结果将在任务完成后可下载)</span>
+          <div class="job-details">
+            <div v-if="analysisStore.selectedJob" class="result-links">
+              <button v-if="analysisStore.selectedJob.status === 'completed'" @click="downloadSingleJson" class="download-button json">下载 JSON 结果</button>
+              <button v-if="analysisStore.selectedJob.status === 'completed'" @click="openCurrentDownloadDialog" class="download-button excel">下载 Excel 报告</button>
+              <span v-if="analysisStore.selectedJob.status !== 'completed'" class="disabled-links-note">(结果将在任务完成后可下载)</span>
             </div>
             <p><strong>状态:</strong>
               <span v-if="analysisStore.selectedJob" class="status-tag" :class="`status-${analysisStore.selectedJob.status}`">
                        {{ translateStatus(analysisStore.selectedJob.status) }}
               </span>
+              <span v-else class="status-tag status-unselected">未选中</span>
             </p>
           </div>
 
           <div v-if="analysisStore.isLoading && !uploadSuccessMessage" class="loading-indicator">
             正在上传或加载历史...
           </div>
-          <div v-if="analysisStore.error" class="error-message">
-            操作失败: {{ analysisStore.error }}
-          </div>
         </section>
 
-        <div class="image-group layout-area layout-area-3" v-if="analysisStore.selectedJob">
+        <div class="image-group" v-if="analysisStore.selectedJob">
           <div class="image-section-wrapper">
-            <section class="image-section card layout-area layout-area-3-a">
+            <section class="image-section card">
             <div class="image-container">
               <h4>原始图片</h4>
               <img
@@ -87,9 +90,9 @@
           </div>
 
           <div class="image-section-wrapper">
-          <section class="image-section card layout-area layout-area-3-b">
+          <section class="image-section card">
             <div class="image-container">
-              <h4>标注图片</h4>
+              <h4>分割图片</h4>
               <img
                   v-if="analysisStore.selectedJob.annotatedImageUrl && analysisStore.selectedJob.status === 'completed'"
                   :src="analysisStore.selectedJob.annotatedImageUrl"
@@ -124,12 +127,12 @@
           </div>
         </div>
 
-        <section class="image-group card placeholder layout-area layout-area-3" v-else>
+        <section class="image-group card placeholder" v-else>
           <p>请从右侧列表中选择一个分割记录以查看详情。</p>
         </section>
 
-        <div class="right-panel layout-area layout-area-4">
-          <section class="upper-panel card layout-area layout-area-4-a">
+        <div class="right-panel">
+          <section class="upper-panel card">
             <h3>待处理文件</h3>
             <div v-if="selectedFiles.length > 0" class="pending-group">
               <div class="pending-group-title">单张文件 ({{ selectedFiles.length }})</div>
@@ -156,27 +159,71 @@
             <p v-if="selectedFiles.length === 0 && selectedFolderFiles.length === 0" class="no-pending">暂无待处理文件</p>
           </section>
 
-          <aside class="job-list-section card layout-area layout-area-4-b">
-            <div class="section-header layout-area layout-area-4-1">
+          <aside class="job-list-section card">
+            <div class="section-header">
               <h3>分割记录</h3>
-              <div class="section-actions layout-area layout-area-4-1-1">
-                <button @click="openDownloadDialog" :disabled="analysisStore.isLoading || analysisStore.historyList.length === 0" class="download-summary-button">
-                  {{ analysisStore.isLoading ? '处理中...' : '下载Excel总表' }}
+              <div class="section-actions">
+                <label class="select-all-checkbox">
+                  <input
+                      type="checkbox"
+                      :checked="isAllCompletedSelected"
+                      :indeterminate="isIndeterminate"
+                      @change="toggleSelectAll"
+                  />
+                  全选
+                </label>
+                <button
+                    @click="batchExportJson"
+                    :disabled="isExporting || selectedAnalysisIds.length === 0"
+                    class="download-summary-button json-batch">
+                  {{ isExporting ? '导出中...' : `批量导出 JSON${selectedAnalysisIds.length > 0 ? ` (${selectedAnalysisIds.length})` : ''}` }}
+                </button>
+                <button
+                    @click="openDownloadDialog"
+                    :disabled="analysisStore.isLoading || selectedAnalysisIds.length === 0"
+                    class="download-summary-button">
+                  {{ analysisStore.isLoading ? '处理中...' : `批量导出 Excel${selectedAnalysisIds.length > 0 ? ` (${selectedAnalysisIds.length})` : ''}` }}
+                </button>
+                <button
+                    @click="handleBatchDelete"
+                    :disabled="analysisStore.isLoading || selectedAnalysisIds.length === 0"
+                    class="download-summary-button delete-batch">
+                  {{ analysisStore.isLoading ? '处理中...' : `批量删除${selectedAnalysisIds.length > 0 ? ` (${selectedAnalysisIds.length})` : ''}` }}
                 </button>
               </div>
             </div>
-            <ul v-if="groupedHistory.length > 0" class="job-list layout-area layout-area-4-2">
+            <ul v-if="groupedHistory.length > 0" class="job-list">
             <template v-for="group in groupedHistory" :key="group.batchId">
               <!-- 批次组标题 -->
               <li
                   class="batch-item"
                   :class="{
                     'expanded': isBatchExpanded(group.batchId),
-                    'selected': !group.hasFolder && analysisStore.selectedJob?.analysisId === group.jobs[0]?.analysisId
+                    'selected': analysisStore.selectedJob?.batchId === group.batchId || (!group.hasFolder && analysisStore.selectedJob?.analysisId === group.jobs[0]?.analysisId)
                   }"
                   @click="handleBatchClick(group)"
               >
                 <div class="batch-header">
+                  <label
+                      v-if="group.hasFolder"
+                      class="folder-select-all"
+                      @click.stop
+                  >
+                    <input
+                        type="checkbox"
+                        :checked="isFolderAllSelected(group)"
+                        :indeterminate="isFolderIndeterminate(group)"
+                        @change="toggleFolderSelectAll(group)"
+                    />
+                  </label>
+                  <input
+                      v-if="!group.hasFolder && group.jobs[0]?.status === 'completed'"
+                      type="checkbox"
+                      :value="group.jobs[0].analysisId"
+                      v-model="selectedAnalysisIds"
+                      @click.stop
+                      class="job-checkbox"
+                  />
                   <span class="batch-icon">
                     <span v-if="group.hasFolder" class="folder-icon">📁</span>
                     <span v-else class="file-icon">🖼️</span>
@@ -218,6 +265,14 @@
                       class="job-item nested"
                       :class="{ 'selected': analysisStore.selectedJob?.analysisId === job.analysisId }"
                   >
+                    <input
+                        v-if="job.status === 'completed'"
+                        type="checkbox"
+                        :value="job.analysisId"
+                        v-model="selectedAnalysisIds"
+                        @click.stop
+                        class="job-checkbox"
+                    />
                     <div class="job-info" @click.stop="selectJob(job)">
                       <span class="filename">{{ job.originalFilename }}</span>
                       <span class="status-indicator" :class="`status-${job.status}`" :title="translateStatus(job.status)"></span>
@@ -247,6 +302,7 @@
       :visible="showDownloadDialog"
       :download-type="currentDownloadType"
       :job="analysisStore.selectedJob"
+      :selected-count="selectedAnalysisIds.length"
       @close="closeDownloadDialog"
       @download="handleExcelDownload"
   />
@@ -257,6 +313,7 @@
 import { ref, onMounted, reactive, watch, computed } from 'vue';
 import { useAnalysisStore } from '@/stores/analysis';
 import { useExcelStore } from '@/stores/excel';
+import { exportService } from '@/services/exportService';
 import ExcelDownload from '@/components/ExcelDownload.vue';
 
 const analysisStore = useAnalysisStore();
@@ -265,6 +322,10 @@ ref(null);
 // Excel下载弹窗相关状态
 const showDownloadDialog = ref(false);
 const currentDownloadType = ref('summary'); // 'summary' 或 'single'
+
+// JSON导出相关状态
+const selectedAnalysisIds = ref([]);
+const isExporting = ref(false);
 
 // 记录已刷新过的任务ID，避免重复刷新
 const refreshedJobs = ref(new Set());
@@ -280,12 +341,11 @@ const generateBatchId = () => {
 // 当前上传批次ID
 const currentBatchId = ref(null);
 
-// 按批次分组的历史记录
+// 按批次ID分组的历史记录
 const groupedHistory = computed(() => {
   const groups = {};
   analysisStore.historyList.forEach(job => {
-    // 如果有批次ID则使用批次ID，否则使用时间戳作为临时批次
-    const batchId = job.batchId || Math.floor(new Date(job.createdAt).getTime() / 5000).toString();
+    const batchId = job.batchId || 'single_' + job.analysisId;
     if (!groups[batchId]) {
       groups[batchId] = {
         batchId: batchId,
@@ -295,15 +355,67 @@ const groupedHistory = computed(() => {
       };
     }
     groups[batchId].jobs.push(job);
-    // 如果一个批次有多个任务，标记为文件夹
-    if (groups[batchId].jobs.length > 1) {
-      groups[batchId].hasFolder = true;
-    }
   });
 
-  // 按创建时间倒序排列
+  Object.values(groups).forEach(g => {
+    g.hasFolder = g.jobs.length > 1;
+  });
+
   return Object.values(groups).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 });
+
+const completedAnalysisIds = computed(() => {
+  return analysisStore.historyList
+    .filter(job => job.status === 'completed')
+    .map(job => job.analysisId);
+});
+
+const isAllCompletedSelected = computed(() => {
+  return completedAnalysisIds.value.length > 0 &&
+    completedAnalysisIds.value.every(id => selectedAnalysisIds.value.includes(id));
+});
+
+const isIndeterminate = computed(() => {
+  const total = completedAnalysisIds.value.length;
+  const selected = selectedAnalysisIds.value.filter(id => completedAnalysisIds.value.includes(id)).length;
+  return selected > 0 && selected < total;
+});
+
+const toggleSelectAll = () => {
+  if (isAllCompletedSelected.value) {
+    selectedAnalysisIds.value = [];
+  } else {
+    selectedAnalysisIds.value = [...completedAnalysisIds.value];
+  }
+};
+
+const folderCompletedIds = (group) => {
+  return group.jobs
+    .filter(job => job.status === 'completed')
+    .map(job => job.analysisId);
+};
+
+const isFolderAllSelected = (group) => {
+  const ids = folderCompletedIds(group);
+  return ids.length > 0 && ids.every(id => selectedAnalysisIds.value.includes(id));
+};
+
+const isFolderIndeterminate = (group) => {
+  const ids = folderCompletedIds(group);
+  if (ids.length === 0) return false;
+  const selected = ids.filter(id => selectedAnalysisIds.value.includes(id)).length;
+  return selected > 0 && selected < ids.length;
+};
+
+const toggleFolderSelectAll = (group) => {
+  const ids = folderCompletedIds(group);
+  if (isFolderAllSelected(group)) {
+    selectedAnalysisIds.value = selectedAnalysisIds.value.filter(id => !ids.includes(id));
+  } else {
+    const set = new Set([...selectedAnalysisIds.value, ...ids]);
+    selectedAnalysisIds.value = [...set];
+  }
+};
 
 // 切换批次展开状态
 const toggleBatch = (batchId) => {
@@ -330,14 +442,8 @@ const handleBatchClick = (group) => {
   }
 };
 
-// 显示总表下载弹窗
-const openDownloadDialog = () => {
-  currentDownloadType.value = 'summary';
-  showDownloadDialog.value = true;
-};
-
-// 显示单个任务下载弹窗
-const openSingleDownloadDialog = () => {
+// 下载当前展示图片的 Excel 报告（不受勾选影响）
+const openCurrentDownloadDialog = () => {
   if (!analysisStore.selectedJob) {
     analysisStore.setError('请先选择一个任务');
     return;
@@ -346,28 +452,86 @@ const openSingleDownloadDialog = () => {
   showDownloadDialog.value = true;
 };
 
+// 打开下载弹窗（根据选中数量自动决定类型）
+const openDownloadDialog = () => {
+  if (selectedAnalysisIds.value.length === 0) {
+    analysisStore.setError('请先勾选至少一个已完成的任务');
+    return;
+  }
+  currentDownloadType.value = selectedAnalysisIds.value.length === 1 ? 'single' : 'batch';
+  showDownloadDialog.value = true;
+};
+
 // 关闭弹窗
 const closeDownloadDialog = () => {
   showDownloadDialog.value = false;
-  currentDownloadType.value = 'summary';
+  currentDownloadType.value = 'single';
 };
 
 // 处理Excel下载
 const handleExcelDownload = async (downloadData) => {
-  if (downloadData.type === 'summary') {
-    // 下载总表
-    const success = await excelStore.downloadExcelSummaryAction(downloadData.columns, downloadData.unit);
-    if (success) {
-      console.log('Excel summary download initiated with selected columns:', downloadData.columns, 'unit:', downloadData.unit);
-    }
-  } else if (downloadData.type === 'single') {
-    // 下载单个任务报告
-    const success = await excelStore.downloadSingleExcelAction(analysisStore.selectedJob.analysisId, downloadData.columns, downloadData.unit);
-    if (success) {
-      console.log('Single Excel report download initiated with selected columns:', downloadData.columns, 'unit:', downloadData.unit);
+  let success = false;
+  if (downloadData.type === 'single') {
+    const id = selectedAnalysisIds.value[0] || analysisStore.selectedJob?.analysisId;
+    if (!id) return;
+    success = await excelStore.downloadSingleExcelAction(id, downloadData.columns, downloadData.unit);
+  } else if (downloadData.type === 'batch') {
+    success = await excelStore.downloadBatchExcelAction(selectedAnalysisIds.value, downloadData.columns, downloadData.unit);
+  } else if (downloadData.type === 'summary') {
+    success = await excelStore.downloadExcelSummaryAction(downloadData.columns, downloadData.unit);
+  }
+  if (success) {
+    console.log('Excel download initiated:', downloadData.type, selectedAnalysisIds.value.length, 'items');
+  }
+};
+
+const downloadSingleJson = async () => {
+  if (!analysisStore.selectedJob || analysisStore.selectedJob.status !== 'completed') {
+    analysisStore.setError('只有已完成的任务才能导出 JSON');
+    return;
+  }
+  isExporting.value = true;
+  try {
+    await exportService.exportSingleJson(analysisStore.selectedJob.analysisId);
+    console.log('JSON export successful');
+  } catch (err) {
+    console.error('JSON export failed:', err);
+  } finally {
+    isExporting.value = false;
+  }
+};
+
+const batchExportJson = async () => {
+  if (selectedAnalysisIds.value.length === 0) return;
+  isExporting.value = true;
+  try {
+    await exportService.batchExportJson(selectedAnalysisIds.value);
+    selectedAnalysisIds.value = [];
+    console.log('Batch JSON export successful');
+  } catch (err) {
+    console.error('Batch JSON export failed:', err);
+  } finally {
+    isExporting.value = false;
+  }
+};
+
+const handleBatchDelete = async () => {
+  if (selectedAnalysisIds.value.length === 0) return;
+  const count = selectedAnalysisIds.value.length;
+  const confirmed = confirm(`确定要删除选中的 ${count} 条记录吗？此操作不可恢复，同时会清理关联的原图、标注图和 JSON 文件。`);
+  if (!confirmed) return;
+  const result = await analysisStore.batchDeleteAction([...selectedAnalysisIds.value]);
+  if (result) {
+    const skipped = result.skipped_ids || [];
+    selectedAnalysisIds.value = [];
+    if (skipped.length > 0) {
+      alert(`成功删除 ${result.deleted_count}/${result.total_requested} 条记录，${skipped.length} 条删除失败`);
+    } else {
+      alert(`成功删除 ${result.deleted_count} 条记录`);
     }
   }
 };
+
 const uploadSuccessMessage = ref('');
 const fileInput = ref(null);
 const imageStatus = reactive({
@@ -398,8 +562,6 @@ const selectedModel = ref('yolov8s.pt'); // <-- 模型选择状态
 // 监听选中任务变化，重置图片状态
 watch(() => analysisStore.selectedJob, (newJob) => {
   if (newJob) {
-    // 保留图片加载状态，只重置缩放和拖拽状态
-    // 这样可以避免图片加载完成后再次显示为灰色
     imageState.original = {
       scale: 1,
       isHovering: false,
@@ -744,12 +906,12 @@ const translateStatus = (status) => {
 
 <style scoped>
 /* 基础样式 */
-.card { background-color: var(--color-surface, #ffffff); padding: 20px; border-radius: 8px; box-shadow: -1px -1px 3px rgba(0,0,0,0.1); }
+.card { background-color: var(--color-surface, #ffffff); padding: 20px; border-radius: 0; box-shadow: -1px -1px 3px rgba(0,0,0,0.1); }
 h3 { margin-top: 0; color: var(--color-primary-green-dark, #2e7d32); border-bottom: 2px solid var(--color-primary-green-lightest, #e6f4ea); padding-bottom: 10px; margin-bottom: 20px; }
 .error-message { color: var(--color-error, red); font-size: 0.9em; margin-top: 10px; }
 .success-message { color: var(--color-primary-green-dark, green); font-size: 0.9em; margin-top: 10px; }
 .success-message.inline { margin-top: 0; white-space: nowrap; }
-button { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 1em; transition: background-color 0.2s, opacity 0.2s; }
+button { padding: 8px 12px; border: none; border-radius: 2px; cursor: pointer; font-size: 1em; transition: background-color 0.2s, opacity 0.2s; }
 button.primary { background-color: var(--color-primary-green, #4caf50); color: white; }
 button.primary:hover:not(:disabled) { background-color: var(--color-primary-green-dark, #2e7d32); }
 button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-allowed; }
@@ -758,12 +920,28 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 .upload-sidebar {
   background-color: var(--color-surface, #ffffff);
   padding: 0;
-  border-radius: 8px;
+  border-radius: 0;
   box-shadow: -1px -1px 3px rgba(0,0,0,0.1);
   flex: 0 0 180px;
   order: 0;
   display: flex;
   flex-direction: column;
+}
+
+.sidebar-title {
+  margin: 0;
+  padding: 16px 7px 10px;
+  font-size: 1.05em;
+  color: var(--color-primary-green-dark, #2e7d32);
+  border: none;
+}
+
+.sidebar-title::after {
+  content: '';
+  display: block;
+  height: 2px;
+  background-color: var(--color-primary-green-lightest, #e6f4ea);
+  margin: 8px 0 0;
 }
 
 /* 上传按钮组 - 竖向列布局 */
@@ -774,7 +952,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   gap: 12px;
   flex: 1;
   min-height: 0;
-  padding: 12px 5px;
+  padding: 12px 7px;
 }
 
 /* 自定义文件选择按钮样式 */
@@ -783,7 +961,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   display: block;
   width: 100%;
   padding: 10px 12px;
-  border-radius: 4px;
+  border-radius: 2px;
   cursor: pointer;
   font-size: 0.9em;
   transition: background-color 0.2s;
@@ -813,7 +991,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   opacity: 0.6;
 }
 .model-select label { margin-right: 5px; font-size: 0.9em; color: #555; display: block; margin-bottom: 5px; }
-.model-select select { padding: 8px 10px; border-radius: 4px; border: 1px solid #ccc; background-color: white; width: 100%; box-sizing: border-box; }
+.model-select select { padding: 8px 10px; border-radius: 0; border: 1px solid #ccc; background-color: white; width: 100%; box-sizing: border-box; }
 
 .upload-button,
 .folder-upload-button {
@@ -879,7 +1057,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   margin-bottom: 4px;
   padding: 4px 8px;
   background: #f5f5f5;
-  border-radius: 4px;
+  border-radius: 0;
 }
 
 .pending-list {
@@ -974,7 +1152,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   color: white;
   padding: 6px 12px;
   border: none;
-  border-radius: 4px;
+  border-radius: 2px;
   cursor: pointer;
   font-size: 0.85em;
   transition: background-color 0.2s;
@@ -1004,7 +1182,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 .batch-item {
   border: 1px solid #eee;
   margin-bottom: 8px;
-  border-radius: 4px;
+  border-radius: 0;
   overflow: hidden;
   transition: background-color 0.2s;
 }
@@ -1013,13 +1191,8 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   background-color: #f9f9f9;
 }
 
-.batch-item.expanded {
-  background-color: var(--color-primary-green-lightest, #f1f8e9);
-}
-
 .batch-item.selected {
   background-color: var(--color-primary-green-lightest, #e6f4ea);
-  border-left: 4px solid var(--color-primary-green, #4caf50);
 }
 
 .batch-header {
@@ -1067,7 +1240,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   flex-shrink: 0;
   cursor: pointer;
   padding: 4px 6px;
-  border-radius: 4px;
+  border-radius: 2px;
   transition: color 0.2s, background-color 0.2s;
 }
 
@@ -1112,7 +1285,6 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 
 .job-item.selected {
   background-color: var(--color-primary-green-lightest, #e6f4ea);
-  border-left: 4px solid var(--color-primary-green, #4caf50);
 }
 
 .job-item.nested {
@@ -1143,8 +1315,8 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   color: white;
   border: none;
   border-radius: 50%;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   cursor: pointer;
   font-size: 16px;
   font-weight: bold;
@@ -1194,8 +1366,12 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   flex-direction: column;
   padding: 8px 5px;
   min-height: 0;
-  border-radius: 6px;
+  border-radius: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  background-color: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
 }
 .image-group.placeholder { color: #888; text-align: center; padding: 50px 20px; font-style: italic; display: block; overflow: visible; }
 
@@ -1208,6 +1384,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   overflow: hidden;
   border-radius: 0;
   box-shadow: none;
+  background-color: transparent;
 }
 .image-container {
   text-align: center;
@@ -1233,7 +1410,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   transform: translateX(-50%);
   background: rgba(255, 255, 255, 0.8);
   padding: 5px 15px;
-  border-radius: 20px;
+  border-radius: 15px;
   color: #555;
   font-weight: 600;
   font-size: 0.9em;
@@ -1247,7 +1424,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   max-height: 100%;
   object-fit: contain;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 0;
   background-color: #f0f0f0;
   display: block;
   margin: 0 auto;
@@ -1280,7 +1457,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   background: rgba(0, 0, 0, 0.7);
   color: white;
   padding: 5px 10px;
-  border-radius: 15px;
+  border-radius: 0;
   font-size: 12px;
   display: flex;
   align-items: center;
@@ -1292,7 +1469,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   background: #4caf50;
   color: white;
   border: none;
-  border-radius: 12px;
+  border-radius: 2px;
   padding: 2px 8px;
   font-size: 10px;
   cursor: pointer;
@@ -1309,22 +1486,87 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 
 .status-failed { color: var(--color-error, #dc3545); font-style: italic; }
 
-.job-details { margin-top: 20px; font-size: 0.95em; color: #333; padding: 8px; }
+.job-details { margin-top: 20px; font-size: 0.95em; color: #333; padding: 8px 10px; }
 .job-details p { margin-bottom: 8px; }
 .job-details strong { margin-right: 5px; color: #111; margin-left: 8px; }
 
-.status-tag { padding: 3px 8px; border-radius: 12px; font-size: 0.85em; color: white; min-width: 60px; text-align: center; display: inline-block; }
+.status-tag { padding: 3px 8px; border-radius: 15px; font-size: 0.85em; color: white; min-width: 60px; text-align: center; display: inline-block; }
 .status-tag.status-processing { background-color: #ff9800; }      /* 橙色 - 处理中 */
 /* 绿色 - 已完成 */
 .status-tag.status-completed { background-color: #28a745; } /* 绿色 - 已完成 */
 .status-tag.status-failed { background-color: var(--color-error, #dc3545); } /* 红色 - 失败 */
+.status-tag.status-unselected { background-color: #d3d3d3; color: #555; } /* 淡灰色 - 未选中 */
 
 .result-links { margin-top: 15px; display: flex; flex-direction: column; gap: 10px; }
-.download-button { display: block; width: 100%; padding: 10px 12px; border-radius: 4px; text-decoration: none; color: white !important; font-size: 0.9em; transition: background-color 0.2s; cursor: pointer; border: none; box-sizing: border-box; text-align: center; }
+.download-button { display: block; width: 100%; padding: 10px 12px; border-radius: 2px; text-decoration: none; color: white !important; font-size: 0.9em; transition: background-color 0.2s; cursor: pointer; border: none; box-sizing: border-box; text-align: center; }
 .download-button.excel { background-color: var(--color-primary-green-dark, #2e7d32); }
 .download-button.excel:hover { background-color: #1b5e20; }
 .download-button.json { background-color: #ffa000; }
 .download-button.json:hover { background-color: #ef6c00; }
 .disabled-links-note { font-size: 0.8em; color: #888; margin-left: 5px; align-self: center; }
+
+.select-all-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: #555;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.select-all-checkbox input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.folder-select-all {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-right: 4px;
+}
+
+.folder-select-all input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.job-checkbox {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  margin-right: 4px;
+}
+
+.batch-header .job-checkbox {
+  margin-right: 2px;
+}
+
+.job-item .job-checkbox {
+  margin-right: 6px;
+}
+
+.download-summary-button.json-batch {
+  background-color: #ffa000;
+}
+
+.download-summary-button.json-batch:hover:not(:disabled) {
+  background-color: #ef6c00;
+}
+
+.download-summary-button.delete-batch {
+  background-color: #f44336;
+}
+
+.download-summary-button.delete-batch:hover:not(:disabled) {
+  background-color: #d32f2f;
+}
 
 </style>

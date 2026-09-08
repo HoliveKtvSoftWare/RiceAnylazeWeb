@@ -44,24 +44,7 @@
         </div>
         <div class="quota-actions">
           <button class="primary" @click="showPurchaseModal = true">购买额度</button>
-          <button class="secondary" @click="showUsageHistory = !showUsageHistory">
-            {{ showUsageHistory ? '隐藏' : '查看' }}使用记录
-          </button>
-        </div>
-
-        <!-- 使用记录 -->
-        <div v-if="showUsageHistory" class="usage-history">
-          <h4>最近使用记录</h4>
-          <div v-if="usageHistory.length > 0" class="history-list">
-            <div v-for="record in usageHistory" :key="record.id" class="history-item">
-              <span class="record-date">{{ formatDate(record.date) }}</span>
-              <span class="record-action">{{ record.action }}</span>
-              <span class="record-cost">-{{ record.cost }} 额度</span>
-            </div>
-          </div>
-          <div v-else class="no-history">
-            <p>暂无使用记录</p>
-          </div>
+          <button class="secondary" @click="showUsageHistory = true">查看使用记录</button>
         </div>
       </section>
 
@@ -126,6 +109,26 @@
         <div class="modal-actions">
           <button class="danger" @click="handleDeleteAccount" :disabled="!deleteConfirmed">确认删除</button>
           <button class="secondary" @click="showDeleteModal = false">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 使用记录模态框 -->
+    <div v-if="showUsageHistory" class="modal-overlay" @click="showUsageHistory = false">
+      <div class="modal-content usage-history-modal" @click.stop>
+        <div class="modal-header">
+          <h3>最近使用记录</h3>
+          <button class="close-btn" @click="showUsageHistory = false">&times;</button>
+        </div>
+        <div v-if="usageHistory.length > 0" class="history-list">
+          <div v-for="record in usageHistory" :key="record.id" class="history-item">
+            <span class="record-date">{{ formatDate(record.date) }}</span>
+            <span class="record-action">{{ record.action }}</span>
+            <span class="record-cost">-{{ record.cost }} 额度</span>
+          </div>
+        </div>
+        <div v-else class="no-history">
+          <p>暂无使用记录</p>
         </div>
       </div>
     </div>
@@ -291,7 +294,7 @@ h3 {
   padding: 6px 12px;
   background-color: #f0f0f0;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 2px;
   cursor: pointer;
   font-size: 0.9em;
 }
@@ -377,14 +380,41 @@ h3 {
   margin-bottom: 20px;
 }
 
-.usage-history {
-  border-top: 1px solid #eee;
-  padding-top: 15px;
+.usage-history-modal {
+  max-width: 600px;
+  height: 350px;
+  overflow-y: auto;
 }
 
-.usage-history h4 {
-  margin-bottom: 10px;
-  color: #555;
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.modal-header h3 {
+  margin-bottom: 0;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5em;
+  color: #999;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.close-btn:hover {
+  color: #333;
+}
+
+.history-list {
+  margin-bottom: 15px;
 }
 
 .history-item {
@@ -464,7 +494,7 @@ h3 {
 button {
   padding: 8px 16px;
   border: none;
-  border-radius: 4px;
+  border-radius: 2px;
   cursor: pointer;
   font-size: 0.9em;
   transition: background-color 0.2s;

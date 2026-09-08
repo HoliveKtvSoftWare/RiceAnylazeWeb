@@ -42,7 +42,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       const responseData = await analysisService.uploadFile(file, batchId); // 调用 service
       console.log('Upload successful, response:', responseData);
 
-      if (responseData.analysis_id && responseData.original_filename) {
+      if (responseData.analysisId && responseData.originalFilename) {
         // 上传成功后刷新历史列表
         await fetchHistoryAction();
       } else {
@@ -124,13 +124,11 @@ export const useAnalysisStore = defineStore('analysis', () => {
     try {
       await analysisService.deleteJob(analysisId);
 
-      // 从本地历史记录中移除已删除的记录
       const index = historyList.value.findIndex(job => job.analysisId === analysisId);
       if (index !== -1) {
         historyList.value.splice(index, 1);
       }
 
-      // 如果当前选中的记录被删除，则清空选中状态
       if (selectedJob.value && selectedJob.value.analysisId === analysisId) {
         selectedJob.value = null;
       }
@@ -147,21 +145,45 @@ export const useAnalysisStore = defineStore('analysis', () => {
     }
   }
 
+  async function batchDeleteAction(analysisIds) {
+    isLoading.value = true;
+    setError(null);
+    try {
+      const result = await analysisService.batchDeleteJobs(analysisIds);
+
+      const deletedSet = new Set(analysisIds);
+      historyList.value = historyList.value.filter(job => !deletedSet.has(job.analysisId));
+
+      if (selectedJob.value && deletedSet.has(selectedJob.value.analysisId)) {
+        selectedJob.value = null;
+      }
+
+      console.log('Batch delete result:', result);
+      return result;
+    } catch (err) {
+      console.error('Batch delete action failed:', err);
+      const detail = err.response?.data?.detail || err.message || '批量删除记录失败。';
+      setError(detail);
+      return null;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   return {
-    // State
     jobs,
     isLoading,
     error,
     historyList,
     selectedJob,
     uiTriggers,
-    // Actions
     uploadFileAction,
     uploadFolderAction,
     fetchHistoryAction,
     selectJobAction,
     setError,
     deleteJobAction,
+    batchDeleteAction,
     triggerSelectSingleFile,
     triggerSelectFolder,
     triggerUploadSingle,

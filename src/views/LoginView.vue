@@ -108,7 +108,7 @@ button {
   background-color: #007bff;
   color: white;
   border: none;
-  border-radius: 3px;
+  border-radius: 2px;
   cursor: pointer;
 }
 

@@ -18,14 +18,17 @@
 
 <style scoped>
 .app-sidebar {
-  width: 200px; /* 导航栏宽度 */
-  background-color: #2e7d32; /* 深绿色背景 */
+  width: 200px;
+  background-color: rgba(46, 125, 50, 0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   color: white;
   padding-top: 20px;
-  height: 100vh; /* 撑满屏幕高度 */
-  position: fixed; /* 固定位置 */
+  height: 100vh;
+  position: fixed;
   top: 0;
   left: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 nav ul {

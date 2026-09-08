@@ -136,7 +136,7 @@ button {
   background-color: #28a745; /* 绿色按钮以示区别 */
   color: white;
   border: none;
-  border-radius: 3px;
+  border-radius: 2px;
   cursor: pointer;
 }
 

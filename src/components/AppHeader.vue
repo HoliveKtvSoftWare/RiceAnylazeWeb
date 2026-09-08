@@ -5,7 +5,7 @@
     </div>
     <div class="user-info" v-if="authStore.isAuthenticated">
       <div class="dropdown" ref="dropdownRef" @click="openDropdown">
-        <span class="dropdown-trigger">欢迎, {{ authStore.user?.email || '用户' }} ▼</span>
+        <span class="dropdown-trigger">欢迎, {{ authStore.user?.email || '用户' }} <span class="dropdown-arrow" :class="{ open: isDropdownOpen }">▼</span></span>
         <div class="dropdown-menu" v-show="isDropdownOpen">
           <button class="dropdown-item" @click.stop="goToUserCenter">用户中心</button>
           <button class="dropdown-item logout-btn" @click.stop="handleLogout">退出登录</button>
@@ -26,7 +26,7 @@ const isDropdownOpen = ref(false);
 const dropdownRef = ref(null);
 
 const openDropdown = () => {
-  isDropdownOpen.value = true;
+  isDropdownOpen.value = !isDropdownOpen.value;
 };
 
 const closeDropdown = () => {
@@ -65,9 +65,13 @@ const handleLogout = async () => {
   justify-content: space-between;
   align-items: center;
   padding: 10px 20px;
-  background-color: #e6f4ea; /* 淡绿色背景 */
-  border-bottom: 1px solid #c8e6c9; /* 稍深的绿色边框 */
-  color: #1b5e20; /* 深绿色文字 */
+  background-color: rgba(230, 244, 234, 0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(200, 230, 201, 0.6);
+  color: #1b5e20;
+  position: relative;
+  z-index: 999;
 }
 
 .header-title h1 {
@@ -86,12 +90,23 @@ const handleLogout = async () => {
 .dropdown-trigger {
   margin-right: 15px;
   padding: 5px 10px;
-  border-radius: 4px;
+  border-radius: 2px;
   transition: background-color 0.2s;
 }
 
 .dropdown-trigger:hover {
   background-color: rgba(76, 175, 80, 0.2);
+}
+
+.dropdown-arrow {
+  display: inline-block;
+  transition: transform 0.25s ease;
+  font-size: 0.75em;
+  margin-left: 2px;
+}
+
+.dropdown-arrow.open {
+  transform: rotate(180deg);
 }
 
 .dropdown-menu {
@@ -104,6 +119,7 @@ const handleLogout = async () => {
   border-radius: 4px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   min-width: 140px;
+  z-index: 1000;
 }
 
 .dropdown-item {
@@ -135,7 +151,7 @@ const handleLogout = async () => {
   color: white;
   border: none;
   padding: 5px 10px;
-  border-radius: 3px;
+  border-radius: 2px;
   cursor: pointer;
   transition: background-color 0.2s;
 }
