@@ -52,7 +52,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 
 const props = defineProps({
   visible: {
@@ -140,9 +140,15 @@ const downloadExcel = () => {
 
 // 关闭弹窗
 const closeDownloadDialog = () => {
-  selectedColumns.value = [];
   emit('close');
 };
+
+watch(() => props.visible, (val) => {
+  if (val) {
+    selectedColumns.value = ['filename'];
+    selectedUnit.value = 'um';
+  }
+});
 </script>
 
 <style scoped>

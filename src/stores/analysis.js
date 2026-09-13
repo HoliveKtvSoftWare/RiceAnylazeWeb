@@ -35,11 +35,11 @@ export const useAnalysisStore = defineStore('analysis', () => {
    * @param {File} file - 要上传的文件
    * @param {string} batchId - 批次ID，用于标识同一次上传的多个文件
    */
-  async function uploadFileAction(file, batchId = null) {
+  async function uploadFileAction(file, batchId = null, fileCount = 1) {
     isLoading.value = true;
-    setError(null); // 调用 action 清除错误
+    setError(null);
     try {
-      const responseData = await analysisService.uploadFile(file, batchId); // 调用 service
+      const responseData = await analysisService.uploadFile(file, batchId, fileCount);
       console.log('Upload successful, response:', responseData);
 
       if (responseData.analysisId && responseData.originalFilename) {

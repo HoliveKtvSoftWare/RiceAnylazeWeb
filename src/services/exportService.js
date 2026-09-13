@@ -48,7 +48,8 @@ const batchExportJson = (analysisIds) => {
   const params = analysisIds.map(id => 'analysis_ids=' + encodeURIComponent(id)).join('&');
   console.debug('Batch exporting JSON for', analysisIds.length, 'analyses');
   return apiClient.post('/export/json/batch?' + params, null, {
-    responseType: 'blob'
+    responseType: 'blob',
+    timeout: 0
   }).then(response => {
     const fallback = 'batch_export_' + analysisIds.length + 'files.zip';
     const filename = extractFilename(response.headers['content-disposition'], fallback);

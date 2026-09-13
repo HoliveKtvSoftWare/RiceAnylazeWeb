@@ -3,7 +3,13 @@
     <nav>
       <ul>
         <li>
-          <router-link to="/" exact-active-class="active-link">主页</router-link>
+          <router-link to="/" exact-active-class="active-link">首页</router-link>
+        </li>
+        <li>
+          <router-link to="/stem" exact-active-class="active-link">水稻茎秆</router-link>
+        </li>
+        <li>
+          <router-link to="/flag-leaf" exact-active-class="active-link">水稻剑叶</router-link>
         </li>
         <li>
           <router-link to="/user-center" exact-active-class="active-link">用户中心</router-link>
@@ -46,12 +52,11 @@ nav li a {
 }
 
 nav li a:hover {
-  background-color: #388e3c; /* 悬停时深一点的绿色 */
+  background-color: #388e3c;
 }
 
-/* 当前激活链接的样式 */
 .active-link {
-  background-color: #1b5e20; /* 更深的绿色 */
+  background-color: #1b5e20;
   font-weight: bold;
 }
 </style>

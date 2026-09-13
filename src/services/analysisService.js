@@ -1,5 +1,12 @@
 import apiClient from './apiClient'; // 导入配置好的axios实例
 
+const getTimeoutByFileCount = (count) => {
+  if (count > 100) return 0;
+  if (count > 50) return 60000;
+  if (count > 10) return 25000;
+  return 10000;
+};
+
 const toCamelCase = (str) => str.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
 
 const transformKeys = (obj) => {
@@ -20,19 +27,18 @@ const transformKeys = (obj) => {
  * @param {string} batchId - 批次ID，用于标识同一次上传的多个文件
  * @returns {Promise<object>} 后端返回的包含 analysis_id 的响应数据或抛出错误
  */
-const uploadFile = (file, batchId = null) => {
+const uploadFile = (file, batchId = null, fileCount = 1) => {
   const formData = new FormData();
-  formData.append('file', file); // 'file' 键名需与后端参数名一致
+  formData.append('file', file);
   if (batchId) {
-    formData.append('batch_id', batchId); // 添加批次ID
+    formData.append('batch_id', batchId);
   }
 
-  // 发送 POST 请求到 /analysis/upload
   return apiClient.post('/analysis/upload', formData, {
-    // 明确设置 Content-Type
     headers: {
       'Content-Type': 'multipart/form-data',
     },
+    timeout: getTimeoutByFileCount(fileCount),
   }).then(response => transformKeys(response.data));
 };
 
@@ -52,6 +58,7 @@ const uploadFolder = (files) => {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
+    timeout: getTimeoutByFileCount(fileArray.length),
   }).then(response => transformKeys(response.data));
 };
 

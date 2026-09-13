@@ -1,7 +1,7 @@
 <template>
   <header class="app-header">
     <div class="header-title">
-      <h1>🌾水稻茎秆微表型结构分割平台</h1>
+      <h1>🌾水稻微表型结构分割平台</h1>
     </div>
     <div class="user-info" v-if="authStore.isAuthenticated">
       <div class="dropdown" ref="dropdownRef" @click="openDropdown">
@@ -11,6 +11,9 @@
           <button class="dropdown-item logout-btn" @click.stop="handleLogout">退出登录</button>
         </div>
       </div>
+    </div>
+    <div class="user-info" v-else>
+      <button class="login-button" @click="goToLogin">登录</button>
     </div>
   </header>
 </template>
@@ -56,6 +59,10 @@ const handleLogout = async () => {
   isDropdownOpen.value = false;
   await authStore.logoutAction(); // 调用退出登录方法
   router.push('/login'); // 跳转到登录页面
+};
+
+const goToLogin = () => {
+  router.push('/login');
 };
 </script>
 
@@ -167,5 +174,20 @@ const handleLogout = async () => {
   background-color: var(--color-primary-green-lightest);
   padding: 3px 8px;
   border-radius: 4px;
+}
+
+.login-button {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 6px 18px;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 0.95em;
+  transition: background-color 0.2s;
+}
+
+.login-button:hover {
+  background-color: #388e3c;
 }
 </style>

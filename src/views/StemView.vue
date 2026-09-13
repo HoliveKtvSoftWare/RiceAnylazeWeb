@@ -34,24 +34,19 @@
               操作失败: {{ analysisStore.error }}
             </div>
 
+            <div v-if="analysisStore.isLoading && !uploadSuccessMessage" class="loading-indicator">
+              正在上传或加载历史...
+            </div>
+
           </div>
 
           <div class="job-details">
-            <div v-if="analysisStore.selectedJob" class="result-links">
-              <button v-if="analysisStore.selectedJob.status === 'completed'" @click="downloadSingleJson" class="download-button json">下载 JSON 结果</button>
-              <button v-if="analysisStore.selectedJob.status === 'completed'" @click="openCurrentDownloadDialog" class="download-button excel">下载 Excel 报告</button>
-              <span v-if="analysisStore.selectedJob.status !== 'completed'" class="disabled-links-note">(结果将在任务完成后可下载)</span>
-            </div>
             <p><strong>状态:</strong>
               <span v-if="analysisStore.selectedJob" class="status-tag" :class="`status-${analysisStore.selectedJob.status}`">
                        {{ translateStatus(analysisStore.selectedJob.status) }}
               </span>
               <span v-else class="status-tag status-unselected">未选中</span>
             </p>
-          </div>
-
-          <div v-if="analysisStore.isLoading && !uploadSuccessMessage" class="loading-indicator">
-            正在上传或加载历史...
           </div>
         </section>
 
@@ -166,7 +161,7 @@
                 <label class="select-all-checkbox">
                   <input
                       type="checkbox"
-                      :checked="isAllCompletedSelected"
+                      :checked="isAllSelected"
                       :indeterminate="isIndeterminate"
                       @change="toggleSelectAll"
                   />
@@ -174,24 +169,41 @@
                 </label>
                 <button
                     @click="batchExportJson"
-                    :disabled="isExporting || selectedAnalysisIds.length === 0"
+                    :disabled="isExporting || selectedCompletedCount === 0"
                     class="download-summary-button json-batch">
-                  {{ isExporting ? '导出中...' : `批量导出 JSON${selectedAnalysisIds.length > 0 ? ` (${selectedAnalysisIds.length})` : ''}` }}
+                  {{ isExporting ? '导出中...' : `导出 JSON${selectedAnalysisIds.length > 0 ? ` (${selectedCompletedCount}/${selectedAnalysisIds.length})` : ''}` }}
                 </button>
                 <button
                     @click="openDownloadDialog"
-                    :disabled="analysisStore.isLoading || selectedAnalysisIds.length === 0"
+                    :disabled="analysisStore.isLoading || excelStore.isLoading || selectedCompletedCount === 0"
                     class="download-summary-button">
-                  {{ analysisStore.isLoading ? '处理中...' : `批量导出 Excel${selectedAnalysisIds.length > 0 ? ` (${selectedAnalysisIds.length})` : ''}` }}
+                  {{ excelStore.isLoading ? '导出中...' : (analysisStore.isLoading ? '处理中...' : `导出 Excel${selectedAnalysisIds.length > 0 ? ` (${selectedCompletedCount}/${selectedAnalysisIds.length})` : ''}`) }}
                 </button>
                 <button
                     @click="handleBatchDelete"
                     :disabled="analysisStore.isLoading || selectedAnalysisIds.length === 0"
                     class="download-summary-button delete-batch">
-                  {{ analysisStore.isLoading ? '处理中...' : `批量删除${selectedAnalysisIds.length > 0 ? ` (${selectedAnalysisIds.length})` : ''}` }}
+                  {{ analysisStore.isLoading ? '处理中...' : `删除${selectedAnalysisIds.length > 0 ? ` (${selectedAnalysisIds.length})` : ''}` }}
                 </button>
               </div>
             </div>
+
+            <div v-if="excelStore.isLoading && excelStore.isAsyncTask" class="export-progress-bar">
+              <div class="export-progress-info">
+                <span>{{ excelStore.taskMessage }}</span>
+                <span v-if="excelStore.taskTotal > 0">{{ excelStore.taskProgress }}/{{ excelStore.taskTotal }}</span>
+              </div>
+              <div class="export-progress-track">
+                <div
+                  class="export-progress-fill"
+                  :style="{ width: exportProgressPercent + '%' }"
+                ></div>
+              </div>
+            </div>
+            <div v-else-if="excelStore.isLoading && !excelStore.isAsyncTask" class="export-progress-bar export-sync">
+              <span>{{ excelStore.taskMessage || '正在生成并下载文件...' }}</span>
+            </div>
+            <div v-if="excelStore.error" class="error-message">{{ excelStore.error }}</div>
             <ul v-if="groupedHistory.length > 0" class="job-list">
             <template v-for="group in groupedHistory" :key="group.batchId">
               <!-- 批次组标题 -->
@@ -217,7 +229,7 @@
                     />
                   </label>
                   <input
-                      v-if="!group.hasFolder && group.jobs[0]?.status === 'completed'"
+                      v-if="!group.hasFolder"
                       type="checkbox"
                       :value="group.jobs[0].analysisId"
                       v-model="selectedAnalysisIds"
@@ -266,7 +278,6 @@
                       :class="{ 'selected': analysisStore.selectedJob?.analysisId === job.analysisId }"
                   >
                     <input
-                        v-if="job.status === 'completed'"
                         type="checkbox"
                         :value="job.analysisId"
                         v-model="selectedAnalysisIds"
@@ -301,7 +312,7 @@
   <ExcelDownload
       :visible="showDownloadDialog"
       :download-type="currentDownloadType"
-      :job="analysisStore.selectedJob"
+      :job="singleSelectedJob"
       :selected-count="selectedAnalysisIds.length"
       @close="closeDownloadDialog"
       @download="handleExcelDownload"
@@ -364,51 +375,74 @@ const groupedHistory = computed(() => {
   return Object.values(groups).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 });
 
+const allAnalysisIds = computed(() => {
+  return analysisStore.historyList.map(job => job.analysisId);
+});
+
+const singleSelectedJob = computed(() => {
+  const ids = getCompletedSelectedIds();
+  if (ids.length === 1) {
+    return analysisStore.historyList.find(job => job.analysisId === ids[0]) || analysisStore.selectedJob;
+  }
+  return analysisStore.selectedJob;
+});
+
 const completedAnalysisIds = computed(() => {
   return analysisStore.historyList
     .filter(job => job.status === 'completed')
     .map(job => job.analysisId);
 });
 
-const isAllCompletedSelected = computed(() => {
-  return completedAnalysisIds.value.length > 0 &&
-    completedAnalysisIds.value.every(id => selectedAnalysisIds.value.includes(id));
+const selectedCompletedCount = computed(() => {
+  const completedSet = new Set(completedAnalysisIds.value);
+  return selectedAnalysisIds.value.filter(id => completedSet.has(id)).length;
+});
+
+const exportProgressPercent = computed(() => {
+  const total = excelStore.taskTotal;
+  const progress = excelStore.taskProgress;
+  if (!total || total <= 0) return 0;
+  return Math.min(100, Math.round((progress / total) * 100));
+});
+
+const isAllSelected = computed(() => {
+  return allAnalysisIds.value.length > 0 &&
+    allAnalysisIds.value.every(id => selectedAnalysisIds.value.includes(id));
 });
 
 const isIndeterminate = computed(() => {
-  const total = completedAnalysisIds.value.length;
-  const selected = selectedAnalysisIds.value.filter(id => completedAnalysisIds.value.includes(id)).length;
+  const total = allAnalysisIds.value.length;
+  if (total === 0) return false;
+  const selected = selectedAnalysisIds.value.filter(id => allAnalysisIds.value.includes(id)).length;
   return selected > 0 && selected < total;
 });
 
 const toggleSelectAll = () => {
-  if (isAllCompletedSelected.value) {
+  if (isAllSelected.value) {
     selectedAnalysisIds.value = [];
   } else {
-    selectedAnalysisIds.value = [...completedAnalysisIds.value];
+    selectedAnalysisIds.value = [...allAnalysisIds.value];
   }
 };
 
-const folderCompletedIds = (group) => {
-  return group.jobs
-    .filter(job => job.status === 'completed')
-    .map(job => job.analysisId);
+const folderAllIds = (group) => {
+  return group.jobs.map(job => job.analysisId);
 };
 
 const isFolderAllSelected = (group) => {
-  const ids = folderCompletedIds(group);
+  const ids = folderAllIds(group);
   return ids.length > 0 && ids.every(id => selectedAnalysisIds.value.includes(id));
 };
 
 const isFolderIndeterminate = (group) => {
-  const ids = folderCompletedIds(group);
+  const ids = folderAllIds(group);
   if (ids.length === 0) return false;
   const selected = ids.filter(id => selectedAnalysisIds.value.includes(id)).length;
   return selected > 0 && selected < ids.length;
 };
 
 const toggleFolderSelectAll = (group) => {
-  const ids = folderCompletedIds(group);
+  const ids = folderAllIds(group);
   if (isFolderAllSelected(group)) {
     selectedAnalysisIds.value = selectedAnalysisIds.value.filter(id => !ids.includes(id));
   } else {
@@ -442,23 +476,14 @@ const handleBatchClick = (group) => {
   }
 };
 
-// 下载当前展示图片的 Excel 报告（不受勾选影响）
-const openCurrentDownloadDialog = () => {
-  if (!analysisStore.selectedJob) {
-    analysisStore.setError('请先选择一个任务');
-    return;
-  }
-  currentDownloadType.value = 'single';
-  showDownloadDialog.value = true;
-};
-
 // 打开下载弹窗（根据选中数量自动决定类型）
 const openDownloadDialog = () => {
-  if (selectedAnalysisIds.value.length === 0) {
+  const ids = getCompletedSelectedIds();
+  if (ids.length === 0) {
     analysisStore.setError('请先勾选至少一个已完成的任务');
     return;
   }
-  currentDownloadType.value = selectedAnalysisIds.value.length === 1 ? 'single' : 'batch';
+  currentDownloadType.value = ids.length === 1 ? 'single' : 'batch';
   showDownloadDialog.value = true;
 };
 
@@ -485,31 +510,29 @@ const handleExcelDownload = async (downloadData) => {
   }
 };
 
-const downloadSingleJson = async () => {
-  if (!analysisStore.selectedJob || analysisStore.selectedJob.status !== 'completed') {
-    analysisStore.setError('只有已完成的任务才能导出 JSON');
+const getCompletedSelectedIds = () => {
+  const completedSet = new Set(completedAnalysisIds.value);
+  return selectedAnalysisIds.value.filter(id => completedSet.has(id));
+};
+
+const batchExportJson = async () => {
+  const ids = getCompletedSelectedIds();
+  if (ids.length === 0) {
+    alert('选中的记录中没有已完成的任务，无法导出 JSON');
     return;
   }
   isExporting.value = true;
   try {
-    await exportService.exportSingleJson(analysisStore.selectedJob.analysisId);
-    console.log('JSON export successful');
+    if (ids.length === 1) {
+      await exportService.exportSingleJson(ids[0]);
+      console.log('Single JSON export successful');
+    } else {
+      await exportService.batchExportJson(ids);
+      console.log('Batch JSON export successful');
+    }
+    selectedAnalysisIds.value = selectedAnalysisIds.value.filter(id => !ids.includes(id));
   } catch (err) {
     console.error('JSON export failed:', err);
-  } finally {
-    isExporting.value = false;
-  }
-};
-
-const batchExportJson = async () => {
-  if (selectedAnalysisIds.value.length === 0) return;
-  isExporting.value = true;
-  try {
-    await exportService.batchExportJson(selectedAnalysisIds.value);
-    selectedAnalysisIds.value = [];
-    console.log('Batch JSON export successful');
-  } catch (err) {
-    console.error('Batch JSON export failed:', err);
   } finally {
     isExporting.value = false;
   }
@@ -696,9 +719,10 @@ const handleFileUpload = async () => {
   currentBatchId.value = generateBatchId();
   const uploadedCount = [];
 
+  const totalFiles = selectedFiles.value.length;
   for (const file of selectedFiles.value) {
     console.log(`上传文件: ${file.name}, 使用模型: ${selectedModel.value}, 批次ID: ${currentBatchId.value}`);
-    const success = await analysisStore.uploadFileAction(file, currentBatchId.value);
+    const success = await analysisStore.uploadFileAction(file, currentBatchId.value, totalFiles);
     if (success) {
       uploadedCount.push(file.name);
     }
@@ -906,12 +930,9 @@ const translateStatus = (status) => {
 
 <style scoped>
 /* 基础样式 */
-.card { background-color: var(--color-surface, #ffffff); padding: 20px; border-radius: 0; box-shadow: -1px -1px 3px rgba(0,0,0,0.1); }
+.card { background-color: var(--color-surface, #ffffff); padding: 20px; box-shadow: -1px -1px 3px rgba(0,0,0,0.1); }
 h3 { margin-top: 0; color: var(--color-primary-green-dark, #2e7d32); border-bottom: 2px solid var(--color-primary-green-lightest, #e6f4ea); padding-bottom: 10px; margin-bottom: 20px; }
 .error-message { color: var(--color-error, red); font-size: 0.9em; margin-top: 10px; }
-.success-message { color: var(--color-primary-green-dark, green); font-size: 0.9em; margin-top: 10px; }
-.success-message.inline { margin-top: 0; white-space: nowrap; }
-button { padding: 8px 12px; border: none; border-radius: 2px; cursor: pointer; font-size: 1em; transition: background-color 0.2s, opacity 0.2s; }
 button.primary { background-color: var(--color-primary-green, #4caf50); color: white; }
 button.primary:hover:not(:disabled) { background-color: var(--color-primary-green-dark, #2e7d32); }
 button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-allowed; }
@@ -919,10 +940,9 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 /* 左侧上传侧栏 */
 .upload-sidebar {
   background-color: var(--color-surface, #ffffff);
-  padding: 0;
-  border-radius: 0;
+  padding: 0 15px;
   box-shadow: -1px -1px 3px rgba(0,0,0,0.1);
-  flex: 0 0 180px;
+  flex: 0 0 170px;
   order: 0;
   display: flex;
   flex-direction: column;
@@ -991,7 +1011,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   opacity: 0.6;
 }
 .model-select label { margin-right: 5px; font-size: 0.9em; color: #555; display: block; margin-bottom: 5px; }
-.model-select select { padding: 8px 10px; border-radius: 0; border: 1px solid #ccc; background-color: white; width: 100%; box-sizing: border-box; }
+.model-select select { padding: 8px 10px; border: 1px solid #ccc; background-color: white; width: 100%; box-sizing: border-box; }
 
 .upload-button,
 .folder-upload-button {
@@ -1014,21 +1034,20 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 /* 分割内容 */
 .main-area {
   display: flex;
-  gap: 20px;
+  gap: 15px;
   align-items: stretch;
   height: 100%;
-  max-height: 800px;
   width: 100%;
   box-sizing: border-box;
 }
 
-/* 右侧面板（纵向布局） */
+/* 右侧面板 */
 .right-panel {
   flex: 49;
   order: 2;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 15px;
   min-width: 0;
 }
 
@@ -1057,7 +1076,6 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   margin-bottom: 4px;
   padding: 4px 8px;
   background: #f5f5f5;
-  border-radius: 0;
 }
 
 .pending-list {
@@ -1147,6 +1165,44 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   gap: 10px;
 }
 
+.export-progress-bar {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  background: var(--color-primary-green-lightest, #e6f4ea);
+  border-radius: 2px;
+  font-size: 0.85em;
+  color: var(--color-primary-green-dark, #2e7d32);
+  border: 1px solid var(--color-primary-green-lightest, #e6f4ea);
+}
+
+.export-progress-bar.export-sync {
+  display: flex;
+  align-items: center;
+  font-style: italic;
+}
+
+.export-progress-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.export-progress-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(46, 125, 50, 0.15);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.export-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4caf50, #2e7d32);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
 .download-summary-button {
   background-color: var(--color-primary-green-dark, #2e7d32);
   color: white;
@@ -1157,6 +1213,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   font-size: 0.85em;
   transition: background-color 0.2s;
   white-space: nowrap;
+  width: 130px;
 }
 
 .download-summary-button:hover:not(:disabled) {
@@ -1182,7 +1239,6 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 .batch-item {
   border: 1px solid #eee;
   margin-bottom: 8px;
-  border-radius: 0;
   overflow: hidden;
   transition: background-color 0.2s;
 }
@@ -1349,7 +1405,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 .status-indicator.status-failed { background-color: var(--color-error, #dc3545); } /* 红色 - 失败 */
 .no-jobs-message { color: #666; text-align: center; padding: 20px; }
 
-/* 图片组容器（纵向排列） */
+/* 图片组容器 */
 .image-group {
   flex: 51;
   order: 1;
@@ -1366,12 +1422,9 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   flex-direction: column;
   padding: 8px 5px;
   min-height: 0;
-  border-radius: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  background-color: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
 }
 .image-group.placeholder { color: #888; text-align: center; padding: 50px 20px; font-style: italic; display: block; overflow: visible; }
 
@@ -1382,7 +1435,6 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   flex-direction: column;
   padding: 0;
   overflow: hidden;
-  border-radius: 0;
   box-shadow: none;
   background-color: transparent;
 }
@@ -1424,7 +1476,6 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   max-height: 100%;
   object-fit: contain;
   border: 1px solid #ddd;
-  border-radius: 0;
   background-color: #f0f0f0;
   display: block;
   margin: 0 auto;
@@ -1457,7 +1508,6 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
   background: rgba(0, 0, 0, 0.7);
   color: white;
   padding: 5px 10px;
-  border-radius: 0;
   font-size: 12px;
   display: flex;
   align-items: center;
@@ -1491,19 +1541,10 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 .job-details strong { margin-right: 5px; color: #111; margin-left: 8px; }
 
 .status-tag { padding: 3px 8px; border-radius: 15px; font-size: 0.85em; color: white; min-width: 60px; text-align: center; display: inline-block; }
-.status-tag.status-processing { background-color: #ff9800; }      /* 橙色 - 处理中 */
-/* 绿色 - 已完成 */
-.status-tag.status-completed { background-color: #28a745; } /* 绿色 - 已完成 */
-.status-tag.status-failed { background-color: var(--color-error, #dc3545); } /* 红色 - 失败 */
-.status-tag.status-unselected { background-color: #d3d3d3; color: #555; } /* 淡灰色 - 未选中 */
-
-.result-links { margin-top: 15px; display: flex; flex-direction: column; gap: 10px; }
-.download-button { display: block; width: 100%; padding: 10px 12px; border-radius: 2px; text-decoration: none; color: white !important; font-size: 0.9em; transition: background-color 0.2s; cursor: pointer; border: none; box-sizing: border-box; text-align: center; }
-.download-button.excel { background-color: var(--color-primary-green-dark, #2e7d32); }
-.download-button.excel:hover { background-color: #1b5e20; }
-.download-button.json { background-color: #ffa000; }
-.download-button.json:hover { background-color: #ef6c00; }
-.disabled-links-note { font-size: 0.8em; color: #888; margin-left: 5px; align-self: center; }
+.status-tag.status-processing { background-color: #ff9800; }
+.status-tag.status-completed { background-color: #28a745; }
+.status-tag.status-failed { background-color: var(--color-error, #dc3545); }
+.status-tag.status-unselected { background-color: #d3d3d3; color: #555; }
 
 .select-all-checkbox {
   display: inline-flex;
@@ -1563,6 +1604,7 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 
 .download-summary-button.delete-batch {
   background-color: #f44336;
+  width: 80px;
 }
 
 .download-summary-button.delete-batch:hover:not(:disabled) {

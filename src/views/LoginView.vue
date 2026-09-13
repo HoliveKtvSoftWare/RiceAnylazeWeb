@@ -1,7 +1,7 @@
 <template>
   <div class="login-container">
     <div class="login-form">
-    <h2>🌾水稻茎秆微表型结构分割平台</h2>
+    <h2>🌾水稻微表型结构分割平台</h2>
     <form @submit.prevent="handleLogin">
       <div class="form-group">
         <label for="email">邮箱:</label>
@@ -52,8 +52,8 @@ const handleLogin = async () => {
 
   if (success) {
     // 6. 登录成功 -> 跳转到主看板页
-    console.log('Login successful, navigating to dashboard...');
-    router.push({ name: 'dashboard' }); // 使用命名路由跳转
+    console.log('Login successful, navigating to home...');
+    router.push({ name: 'home' });
   } else {
     // 7. 登录失败 -> 显示错误信息
     // 简单的错误提示，可以根据 authStore 中可能设置的更具体的错误信息来改进

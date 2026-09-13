@@ -2,87 +2,46 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { excelService } from '@/services/excelServerce';
 
+const ASYNC_THRESHOLD = 20;
+
 export const useExcelStore = defineStore('excel', () => {
     const isLoading = ref(false);
     const error = ref(null);
     const exportColumns = ref([]);
 
+    const taskProgress = ref(0);
+    const taskTotal = ref(0);
+    const taskMessage = ref('');
+    const isAsyncTask = ref(false);
+
     function setError(message) {
         error.value = message;
     }
-    /**
-     * 下载单个分析任务的Excel报告
-     */
+
+    function resetProgress() {
+        taskProgress.value = 0;
+        taskTotal.value = 0;
+        taskMessage.value = '';
+        isAsyncTask.value = false;
+    }
+
+    function onProgressUpdate({ progress, total, message }) {
+        taskProgress.value = progress ?? 0;
+        taskTotal.value = total ?? 0;
+        taskMessage.value = message || '';
+    }
+
     async function downloadSingleExcelAction(analysisId, selectedColumns, unit) {
         isLoading.value = true;
         setError(null);
+        resetProgress();
         try {
-            const response = await excelService.exportSingleToExcel(analysisId, selectedColumns, unit);
-            if (response.filename && response.content) {
-                const byteCharacters = atob(response.content);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
-                }
-                const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-                const url = window.URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = response.filename;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                window.URL.revokeObjectURL(url);
-                console.log(`Excel file downloaded: ${response.filename}`);
-                return true;
-            } else {
-                setError('Excel文件数据格式错误');
-                return false;
-            }
+            const result = await excelService.exportSingleToExcel(analysisId, selectedColumns, unit);
+            console.log(`Single Excel downloaded: ${result.filename}`);
+            return true;
         } catch (err) {
-            console.error('Download single Excel action failed:', err);
+            console.error('Download single Excel failed:', err);
             const detail = err.response?.data?.detail || err.message || '下载Excel报告失败。';
-            setError(detail);
-            return false;
-        } finally {
-            isLoading.value = false;
-        }
-    }
-
-    /**
-     * 下载所有分析记录的Excel总表
-     */
-    async function downloadExcelSummaryAction(selectedColumns, unit) {
-        isLoading.value = true;
-        setError(null);
-        try {
-            const response = await excelService.exportAllToExcel(selectedColumns, unit);
-            if (response.filename && response.content) {
-                const byteCharacters = atob(response.content);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
-                }
-                const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-                const url = window.URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = response.filename;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                window.URL.revokeObjectURL(url);
-                console.log(`Excel summary file downloaded: ${response.filename}`);
-                return true;
-            } else {
-                setError('Excel总表数据格式错误');
-                return false;
-            }
-        } catch (err) {
-            console.error('Download Excel summary action failed:', err);
-            const detail = err.response?.data?.detail || err.message || '下载Excel总表失败。';
             setError(detail);
             return false;
         } finally {
@@ -93,37 +52,60 @@ export const useExcelStore = defineStore('excel', () => {
     async function downloadBatchExcelAction(analysisIds, selectedColumns, unit) {
         isLoading.value = true;
         setError(null);
+        resetProgress();
+
+        const useAsync = analysisIds.length > ASYNC_THRESHOLD;
+        if (useAsync) {
+            isAsyncTask.value = true;
+            taskMessage.value = '正在提交导出任务...';
+        }
+
         try {
-            const response = await excelService.batchExportToExcel(analysisIds, selectedColumns, unit);
-            if (response.filename && response.content) {
-                const byteCharacters = atob(response.content);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
-                }
-                const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-                const url = window.URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = response.filename;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                window.URL.revokeObjectURL(url);
-                console.log(`Batch Excel file downloaded (${analysisIds.length} analyses): ${response.filename}`);
-                return true;
+            if (useAsync) {
+                const { taskId } = await excelService.batchExportToExcel(
+                    analysisIds, selectedColumns, unit, true
+                );
+                taskMessage.value = '导出任务已提交，处理中...';
+                await excelService.pollAndDownloadTask(taskId, onProgressUpdate);
             } else {
-                setError('Excel文件数据格式错误');
-                return false;
+                await excelService.batchExportToExcel(
+                    analysisIds, selectedColumns, unit, false
+                );
             }
+            console.log(`Batch Excel downloaded (${analysisIds.length} items)`);
+            return true;
         } catch (err) {
-            console.error('Download batch Excel action failed:', err);
+            console.error('Download batch Excel failed:', err);
             const detail = err.response?.data?.detail || err.message || '批量下载Excel报告失败。';
             setError(detail);
             return false;
         } finally {
             isLoading.value = false;
+            resetProgress();
+        }
+    }
+
+    async function downloadExcelSummaryAction(selectedColumns, unit) {
+        isLoading.value = true;
+        setError(null);
+        resetProgress();
+        isAsyncTask.value = true;
+        taskMessage.value = '正在提交导出任务...';
+
+        try {
+            const { taskId } = await excelService.exportAllToExcel(selectedColumns, unit, true);
+            taskMessage.value = '汇总导出任务已提交，处理中...';
+            await excelService.pollAndDownloadTask(taskId, onProgressUpdate);
+            console.log('Summary Excel downloaded');
+            return true;
+        } catch (err) {
+            console.error('Download Excel summary failed:', err);
+            const detail = err.response?.data?.detail || err.message || '下载Excel总表失败。';
+            setError(detail);
+            return false;
+        } finally {
+            isLoading.value = false;
+            resetProgress();
         }
     }
 
@@ -131,6 +113,10 @@ export const useExcelStore = defineStore('excel', () => {
         isLoading,
         error,
         exportColumns,
+        taskProgress,
+        taskTotal,
+        taskMessage,
+        isAsyncTask,
         setError,
         downloadSingleExcelAction,
         downloadBatchExcelAction,
