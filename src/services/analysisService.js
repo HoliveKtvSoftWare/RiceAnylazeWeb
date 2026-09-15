@@ -1,4 +1,5 @@
 import apiClient from './apiClient'; // 导入配置好的axios实例
+import { transformKeys } from '@/utils/transform';
 
 const getTimeoutByFileCount = (count) => {
   if (count > 100) return 0;
@@ -7,31 +8,30 @@ const getTimeoutByFileCount = (count) => {
   return 10000;
 };
 
-const toCamelCase = (str) => str.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
-
-const transformKeys = (obj) => {
-  if (Array.isArray(obj)) return obj.map(transformKeys);
-  if (obj && typeof obj === 'object') {
-    const result = {};
-    for (const key of Object.keys(obj)) {
-      result[toCamelCase(key)] = transformKeys(obj[key]);
-    }
-    return result;
-  }
-  return obj;
+/**
+ * 获取后端可用的模型列表
+ * @returns {Promise<{models: Array<{name: string, path: string}>, default: string}>}
+ */
+const fetchModels = () => {
+  return apiClient.get('/analysis/models')
+    .then(response => response.data);
 };
 
 /**
  * 上传图片文件进行分析
  * @param {File} file - 用户选择的图片文件对象
  * @param {string} batchId - 批次ID，用于标识同一次上传的多个文件
+ * @param {string} [modelName] - 选中的模型名称（可选，不传则后端用默认模型）
  * @returns {Promise<object>} 后端返回的包含 analysis_id 的响应数据或抛出错误
  */
-const uploadFile = (file, batchId = null, fileCount = 1) => {
+const uploadFile = (file, batchId = null, fileCount = 1, modelName = null) => {
   const formData = new FormData();
   formData.append('file', file);
   if (batchId) {
     formData.append('batch_id', batchId);
+  }
+  if (modelName) {
+    formData.append('model_name', modelName);
   }
 
   return apiClient.post('/analysis/upload', formData, {
@@ -45,14 +45,18 @@ const uploadFile = (file, batchId = null, fileCount = 1) => {
 /**
  * 批量上传文件夹中的图片进行分析
  * @param {FileList|Array} files - 文件夹中的文件列表
+ * @param {string} [modelName] - 选中的模型名称（可选，整个批次用同一个模型）
  * @returns {Promise<object>} 后端返回的批量上传结果
  */
-const uploadFolder = (files) => {
+const uploadFolder = (files, modelName = null) => {
   const fileArray = Array.from(files);
   const formData = new FormData();
   fileArray.forEach(file => {
     formData.append('files', file);
   });
+  if (modelName) {
+    formData.append('model_name', modelName);
+  }
 
   return apiClient.post('/analysis/upload/batch', formData, {
     headers: {
@@ -113,6 +117,7 @@ const batchDeleteJobs = (analysisIds) => {
 
 // 导出服务对象
 export const analysisService = {
+  fetchModels,
   uploadFile,
   uploadFolder,
   getHistory,

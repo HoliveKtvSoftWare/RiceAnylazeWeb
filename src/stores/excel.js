@@ -31,12 +31,12 @@ export const useExcelStore = defineStore('excel', () => {
         taskMessage.value = message || '';
     }
 
-    async function downloadSingleExcelAction(analysisId, selectedColumns, unit) {
+    async function downloadSingleExcelAction(analysisId, originalFilename, selectedColumns, unit, context = null) {
         isLoading.value = true;
         setError(null);
         resetProgress();
         try {
-            const result = await excelService.exportSingleToExcel(analysisId, selectedColumns, unit);
+            const result = await excelService.exportSingleToExcel(analysisId, originalFilename, selectedColumns, unit, context);
             console.log(`Single Excel downloaded: ${result.filename}`);
             return true;
         } catch (err) {
@@ -49,7 +49,7 @@ export const useExcelStore = defineStore('excel', () => {
         }
     }
 
-    async function downloadBatchExcelAction(analysisIds, selectedColumns, unit) {
+    async function downloadBatchExcelAction(analysisIds, selectedColumns, unit, context = null) {
         isLoading.value = true;
         setError(null);
         resetProgress();
@@ -63,13 +63,13 @@ export const useExcelStore = defineStore('excel', () => {
         try {
             if (useAsync) {
                 const { taskId } = await excelService.batchExportToExcel(
-                    analysisIds, selectedColumns, unit, true
+                    analysisIds, selectedColumns, unit, true, context
                 );
                 taskMessage.value = '导出任务已提交，处理中...';
-                await excelService.pollAndDownloadTask(taskId, onProgressUpdate);
+                await excelService.pollAndDownloadTask(taskId, onProgressUpdate, 1500, context);
             } else {
                 await excelService.batchExportToExcel(
-                    analysisIds, selectedColumns, unit, false
+                    analysisIds, selectedColumns, unit, false, context
                 );
             }
             console.log(`Batch Excel downloaded (${analysisIds.length} items)`);
@@ -85,7 +85,7 @@ export const useExcelStore = defineStore('excel', () => {
         }
     }
 
-    async function downloadExcelSummaryAction(selectedColumns, unit) {
+    async function downloadExcelSummaryAction(selectedColumns, unit, context = null) {
         isLoading.value = true;
         setError(null);
         resetProgress();
@@ -93,9 +93,9 @@ export const useExcelStore = defineStore('excel', () => {
         taskMessage.value = '正在提交导出任务...';
 
         try {
-            const { taskId } = await excelService.exportAllToExcel(selectedColumns, unit, true);
+            const { taskId } = await excelService.exportAllToExcel(selectedColumns, unit, true, context);
             taskMessage.value = '汇总导出任务已提交，处理中...';
-            await excelService.pollAndDownloadTask(taskId, onProgressUpdate);
+            await excelService.pollAndDownloadTask(taskId, onProgressUpdate, 1500, context);
             console.log('Summary Excel downloaded');
             return true;
         } catch (err) {

@@ -10,6 +10,13 @@ export const useAnalysisStore = defineStore('analysis', () => {
   /** @type {{analysisId: string, originalFilename: string, originalImageUrl: string, annotatedImageUrl: string, status: string, createdAt: string, batchId?: string} | null} */
   const selectedJob = ref(null); // 存储当前选中的历史记录对象
 
+  /** @type {Array<{name: string, path: string}>} */
+  const availableModels = ref([]);
+  const defaultModelName = ref(null);
+  const currentModelName = ref(null);
+  const modelsLoaded = ref(false);
+  const modelsLoading = ref(false);
+
   const uiTriggers = reactive({
     selectSingleFile: 0,
     selectFolder: 0,
@@ -31,15 +38,38 @@ export const useAnalysisStore = defineStore('analysis', () => {
   }
 
   /**
+   * 从后端拉取可用模型列表
+   */
+  async function fetchModelsAction() {
+    modelsLoading.value = true;
+    try {
+      const data = await analysisService.fetchModels();
+      availableModels.value = data.models || [];
+      defaultModelName.value = data.default || null;
+      if (!currentModelName.value && data.default) {
+        currentModelName.value = data.default;
+      }
+      modelsLoaded.value = true;
+      console.log('Models fetched:', availableModels.value, 'default:', defaultModelName.value);
+    } catch (err) {
+      console.error('Failed to fetch models:', err.response?.data || err.message);
+      modelsLoaded.value = true;
+    } finally {
+      modelsLoading.value = false;
+    }
+  }
+
+  /**
    * 上传图片文件进行分析
    * @param {File} file - 要上传的文件
    * @param {string} batchId - 批次ID，用于标识同一次上传的多个文件
+   * @param {string} [modelName] - 选中的模型名称（可选）
    */
-  async function uploadFileAction(file, batchId = null, fileCount = 1) {
+  async function uploadFileAction(file, batchId = null, fileCount = 1, modelName = null) {
     isLoading.value = true;
     setError(null);
     try {
-      const responseData = await analysisService.uploadFile(file, batchId, fileCount);
+      const responseData = await analysisService.uploadFile(file, batchId, fileCount, modelName);
       console.log('Upload successful, response:', responseData);
 
       if (responseData.analysisId && responseData.originalFilename) {
@@ -64,12 +94,13 @@ export const useAnalysisStore = defineStore('analysis', () => {
   /**
    * 批量上传文件夹进行分析
    * @param {FileList|Array} files - 文件夹中的文件列表
+   * @param {string} [modelName] - 选中的模型名称（可选，整个批次用同一个模型）
    */
-  async function uploadFolderAction(files) {
+  async function uploadFolderAction(files, modelName = null) {
     isLoading.value = true;
     setError(null);
     try {
-      const responseData = await analysisService.uploadFolder(files);
+      const responseData = await analysisService.uploadFolder(files, modelName);
       console.log('Folder upload successful, response:', responseData);
 
       // 上传成功后刷新历史列表
@@ -177,9 +208,15 @@ export const useAnalysisStore = defineStore('analysis', () => {
     historyList,
     selectedJob,
     uiTriggers,
+    availableModels,
+    defaultModelName,
+    currentModelName,
+    modelsLoaded,
+    modelsLoading,
     uploadFileAction,
     uploadFolderAction,
     fetchHistoryAction,
+    fetchModelsAction,
     selectJobAction,
     setError,
     deleteJobAction,

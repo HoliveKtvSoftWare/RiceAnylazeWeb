@@ -6,9 +6,14 @@
           <div class="upload-controls">
             <div class="model-select">
               <label for="model-choice">选择模型:</label>
-              <select id="model-choice" v-model="selectedModel" :disabled="analysisStore.isLoading">
-                <option value="yolov8s-1.pt">YOLOv8s-1</option>
-                <option value="yolov8s.pt">YOLOv8s</option>
+              <select id="model-choice" v-model="analysisStore.currentModelName" :disabled="analysisStore.isLoading || analysisStore.modelsLoading">
+                <option v-if="analysisStore.modelsLoading" value="">加载中...</option>
+                <option v-else-if="analysisStore.availableModels.length === 0" :value="null">默认模型</option>
+                <option
+                  v-for="m in analysisStore.availableModels"
+                  :key="m.name"
+                  :value="m.name"
+                >{{ m.name }}</option>
               </select>
             </div>
 
@@ -29,14 +34,6 @@
             <button @click="handleFolderUpload" :disabled="selectedFolderFiles.length === 0 || analysisStore.isLoading" class="primary folder-upload-button">
               {{ analysisStore.isLoading ? '处理中...' : '上传文件夹并分割' }}
             </button>
-
-            <div v-if="analysisStore.error" class="error-message">
-              操作失败: {{ analysisStore.error }}
-            </div>
-
-            <div v-if="analysisStore.isLoading && !uploadSuccessMessage" class="loading-indicator">
-              正在上传或加载历史...
-            </div>
 
           </div>
 
@@ -112,7 +109,11 @@
                 <button @click="resetScale('annotated')" class="reset-button">重置</button>
               </div>
               <p v-if="analysisStore.selectedJob.status === 'processing'" class="status-processing">处理中...</p>
-              <p v-else-if="analysisStore.selectedJob.status === 'failed'" class="status-failed error-message">分析失败</p>
+              <div v-else-if="analysisStore.selectedJob.status === 'failed'" class="failed-detail">
+                <p class="status-failed error-message">❌ 分析失败</p>
+                <p v-if="analysisStore.selectedJob.errorMessage" class="failed-error-msg">{{ analysisStore.selectedJob.errorMessage }}</p>
+                <p class="failed-meta" v-if="displayModelUsed(analysisStore.selectedJob.modelUsed)">使用模型：{{ displayModelUsed(analysisStore.selectedJob.modelUsed) }}</p>
+              </div>
               <p v-else-if="analysisStore.selectedJob.status === 'completed' && !analysisStore.selectedJob.annotatedImageUrl" class="error-message image-error">标注图片URL为空</p>
               <p v-else-if="!(analysisStore.selectedJob.status!=='completed'||analysisStore.selectedJob.annotatedImageUrl)" class="status-completed">分析完成</p>
               <p v-else-if="imageStatus.annotated.error" class="error-message image-error">无法加载标注图片</p>
@@ -248,6 +249,9 @@
                       {{ group.jobs[0]?.originalFilename }}
                     </template>
                   </span>
+                  <span v-if="!group.hasFolder && displayModelUsed(group.jobs[0]?.modelUsed)" class="batch-model-tag" :title="`使用模型: ${displayModelUsed(group.jobs[0].modelUsed)}`">
+                    {{ displayModelUsed(group.jobs[0].modelUsed) }}
+                  </span>
                   <span class="batch-timestamp">{{ formatDate(group.createdAt) }}</span>
                   <button
                       v-if="group.hasFolder"
@@ -257,7 +261,12 @@
                   >
                     <span class="expand-icon">{{ isBatchExpanded(group.batchId) ? '▼' : '▶' }}</span>
                   </button>
-                  <span v-if="!group.hasFolder" class="status-indicator" :class="`status-${group.jobs[0]?.status}`" :title="translateStatus(group.jobs[0]?.status)"></span>
+                  <span
+                    v-if="!group.hasFolder"
+                    class="status-indicator"
+                    :class="`status-${group.jobs[0]?.status}`"
+                    :title="group.jobs[0]?.status === 'failed' && group.jobs[0]?.errorMessage ? `分析失败：${group.jobs[0].errorMessage}` : translateStatus(group.jobs[0]?.status)"
+                  ></span>
                   <button
                       v-if="!group.hasFolder"
                       @click.stop="deleteJob(group.jobs[0].analysisId, group.jobs[0].originalFilename)"
@@ -286,7 +295,12 @@
                     />
                     <div class="job-info" @click.stop="selectJob(job)">
                       <span class="filename">{{ job.originalFilename }}</span>
-                      <span class="status-indicator" :class="`status-${job.status}`" :title="translateStatus(job.status)"></span>
+                      <span v-if="displayModelUsed(job.modelUsed)" class="job-model-tag" :title="`使用模型: ${displayModelUsed(job.modelUsed)}`">{{ displayModelUsed(job.modelUsed) }}</span>
+                      <span
+                        class="status-indicator"
+                        :class="`status-${job.status}`"
+                        :title="job.status === 'failed' && job.errorMessage ? `分析失败：${job.errorMessage}` : translateStatus(job.status)"
+                      ></span>
                     </div>
                     <button
                         @click.stop="deleteJob(job.analysisId, job.originalFilename)"
@@ -499,11 +513,13 @@ const handleExcelDownload = async (downloadData) => {
   if (downloadData.type === 'single') {
     const id = selectedAnalysisIds.value[0] || analysisStore.selectedJob?.analysisId;
     if (!id) return;
-    success = await excelStore.downloadSingleExcelAction(id, downloadData.columns, downloadData.unit);
+    const job = analysisStore.historyList.find(j => j.analysisId === id) || analysisStore.selectedJob;
+    const originalFilename = job?.originalFilename || '';
+    success = await excelStore.downloadSingleExcelAction(id, originalFilename, downloadData.columns, downloadData.unit, '茎秆');
   } else if (downloadData.type === 'batch') {
-    success = await excelStore.downloadBatchExcelAction(selectedAnalysisIds.value, downloadData.columns, downloadData.unit);
+    success = await excelStore.downloadBatchExcelAction(selectedAnalysisIds.value, downloadData.columns, downloadData.unit, '茎秆');
   } else if (downloadData.type === 'summary') {
-    success = await excelStore.downloadExcelSummaryAction(downloadData.columns, downloadData.unit);
+    success = await excelStore.downloadExcelSummaryAction(downloadData.columns, downloadData.unit, '茎秆');
   }
   if (success) {
     console.log('Excel download initiated:', downloadData.type, selectedAnalysisIds.value.length, 'items');
@@ -524,10 +540,12 @@ const batchExportJson = async () => {
   isExporting.value = true;
   try {
     if (ids.length === 1) {
-      await exportService.exportSingleJson(ids[0]);
+      const job = analysisStore.historyList.find(j => j.analysisId === ids[0]) || analysisStore.selectedJob;
+      const originalFilename = job?.originalFilename || '';
+      await exportService.exportSingleJson(ids[0], originalFilename, '茎秆');
       console.log('Single JSON export successful');
     } else {
-      await exportService.batchExportJson(ids);
+      await exportService.batchExportJson(ids, '茎秆');
       console.log('Batch JSON export successful');
     }
     selectedAnalysisIds.value = selectedAnalysisIds.value.filter(id => !ids.includes(id));
@@ -580,8 +598,6 @@ const imageState = reactive({
   },
 });
 
-const selectedModel = ref('yolov8s.pt'); // <-- 模型选择状态
-
 // 监听选中任务变化，重置图片状态
 watch(() => analysisStore.selectedJob, (newJob) => {
   if (newJob) {
@@ -603,9 +619,10 @@ watch(() => analysisStore.selectedJob, (newJob) => {
   }
 });
 
-// 组件挂载时获取历史
+// 组件挂载时获取历史和模型列表
 onMounted(() => {
   analysisStore.fetchHistoryAction();
+  analysisStore.fetchModelsAction();
 });
 
 // 处理文件选择（支持单文件和多文件选择）
@@ -652,8 +669,8 @@ const handleFolderUpload = async () => {
   }
   uploadSuccessMessage.value = '';
 
-  console.log(`上传文件夹，共 ${selectedFolderFiles.value.length} 个文件`);
-  const response = await analysisStore.uploadFolderAction(selectedFolderFiles.value);
+  console.log(`上传文件夹，共 ${selectedFolderFiles.value.length} 个文件，使用模型: ${analysisStore.currentModelName}`);
+  const response = await analysisStore.uploadFolderAction(selectedFolderFiles.value, analysisStore.currentModelName);
 
   if (response) {
     uploadSuccessMessage.value = `已成功提交 ${selectedFolderFiles.value.length} 个文件进行批量处理...`;
@@ -721,8 +738,8 @@ const handleFileUpload = async () => {
 
   const totalFiles = selectedFiles.value.length;
   for (const file of selectedFiles.value) {
-    console.log(`上传文件: ${file.name}, 使用模型: ${selectedModel.value}, 批次ID: ${currentBatchId.value}`);
-    const success = await analysisStore.uploadFileAction(file, currentBatchId.value, totalFiles);
+    console.log(`上传文件: ${file.name}, 使用模型: ${analysisStore.currentModelName}, 批次ID: ${currentBatchId.value}`);
+    const success = await analysisStore.uploadFileAction(file, currentBatchId.value, totalFiles, analysisStore.currentModelName);
     if (success) {
       uploadedCount.push(file.name);
     }
@@ -925,6 +942,13 @@ const translateStatus = (status) => {
   return statusMap[status] || status;
 };
 
+// 翻译 modelUsed 字段（三种值：实际名 / "default" / null）
+const displayModelUsed = (val) => {
+  if (!val) return null;          // null / undefined / '' — 老数据，不显示
+  if (val === 'default') return '默认模型';
+  return val;                     // 实际模型名，直接展示
+};
+
 </script>
 
 
@@ -1013,6 +1037,34 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 .model-select label { margin-right: 5px; font-size: 0.9em; color: #555; display: block; margin-bottom: 5px; }
 .model-select select { padding: 8px 10px; border: 1px solid #ccc; background-color: white; width: 100%; box-sizing: border-box; }
 
+.batch-model-tag {
+  font-size: 0.75em;
+  background: #e6f4ea;
+  color: #2e7d32;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 6px;
+  white-space: nowrap;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.job-model-tag {
+  font-size: 0.7em;
+  background: #e6f4ea;
+  color: #2e7d32;
+  padding: 1px 5px;
+  border-radius: 8px;
+  margin-left: 4px;
+  white-space: nowrap;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
 .upload-button,
 .folder-upload-button {
   width: 100%;
@@ -1027,8 +1079,6 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 .folder-upload-button:hover:not(:disabled) {
   background-color: #1976d2;
 }
-
-.loading-indicator { font-style: italic; color: #666; margin-top: 10px; }
 
 
 /* 分割内容 */
@@ -1497,6 +1547,37 @@ button:disabled { background-color: #ccc !important; opacity: 0.6; cursor: not-a
 
 .status-failed.error-message {
   color: var(--color-error, #dc3545);
+}
+
+.failed-detail {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  text-align: center;
+  padding: 12px 8px;
+  background: #fff5f5;
+  border: 1px dashed var(--color-error, #dc3545);
+  border-radius: 4px;
+}
+
+.failed-detail .status-failed {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+
+.failed-error-msg {
+  margin: 0 0 6px;
+  font-size: 0.85em;
+  color: #b00020;
+  word-break: break-all;
+}
+
+.failed-meta {
+  margin: 0;
+  font-size: 0.8em;
+  color: #888;
 }
 
 /* 缩放指示器样式 */

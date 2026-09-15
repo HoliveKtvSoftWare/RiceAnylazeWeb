@@ -1,33 +1,16 @@
 import apiClient from './apiClient';
+import { downloadBlob } from '@/utils/fileDownload';
 
-const downloadBlob = (response, filename) => {
-  const url = URL.createObjectURL(response.data);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-};
-
-const extractFilename = (disposition, fallback) => {
-  if (!disposition) return fallback;
-  const match = disposition.match(/filename\*?=(?:UTF-8'')?([^;]+)/i);
-  if (match) {
-    return decodeURIComponent(match[1].trim().replace(/^"|"$/g, ''));
-  }
-  return fallback;
-};
-
-const exportSingleJson = (analysisId) => {
-  console.debug('Exporting JSON for analysis:', analysisId);
+const exportSingleJson = (analysisId, originalFilename, context = null) => {
+  console.debug('Exporting JSON for analysis:', analysisId, originalFilename);
   return apiClient.get('/export/json/' + analysisId, {
     responseType: 'blob'
   }).then(response => {
-    const filename = extractFilename(response.headers['content-disposition'], analysisId + '.json');
-    downloadBlob(response, filename);
-    return { success: true };
+    const baseName = originalFilename
+      ? `${originalFilename.replace(/\.[^.]+$/, '')}.json`
+      : `${analysisId}.json`;
+    const filename = downloadBlob(response, baseName, context, true);
+    return { success: true, filename };
   }).catch(error => {
     console.error('Failed to export single JSON:', error.response?.data || error.message);
     throw error;
@@ -44,17 +27,16 @@ const previewJson = (analysisId) => {
     });
 };
 
-const batchExportJson = (analysisIds) => {
+const batchExportJson = (analysisIds, context = null) => {
   const params = analysisIds.map(id => 'analysis_ids=' + encodeURIComponent(id)).join('&');
   console.debug('Batch exporting JSON for', analysisIds.length, 'analyses');
   return apiClient.post('/export/json/batch?' + params, null, {
     responseType: 'blob',
     timeout: 0
   }).then(response => {
-    const fallback = 'batch_export_' + analysisIds.length + 'files.zip';
-    const filename = extractFilename(response.headers['content-disposition'], fallback);
-    downloadBlob(response, filename);
-    return { success: true };
+    const fallback = `batch_export_${analysisIds.length}files.zip`;
+    const filename = downloadBlob(response, fallback, context);
+    return { success: true, filename };
   }).catch(error => {
     console.error('Failed to batch export JSON:', error.response?.data || error.message);
     throw error;
