@@ -1,9 +1,36 @@
 import axios from 'axios'
 
+// --- 关键操作保护机制 ---
+// 当正在进行上传/分析等不可中断的关键操作时，延迟处理 401 跳转
+// 避免用户因 token 过期被强制踢走导致操作中断
+let _criticalOperationDepth = 0
+let _pending401Redirect = false
+
+export function beginCriticalOperation() {
+  _criticalOperationDepth++
+}
+
+export function endCriticalOperation() {
+  _criticalOperationDepth--
+  if (_criticalOperationDepth <= 0) {
+    _criticalOperationDepth = 0
+    if (_pending401Redirect) {
+      _pending401Redirect = false
+      console.warn('Critical operation finished, redirecting to login due to prior 401.')
+      localStorage.removeItem('authToken')
+      window.location.href = '/login'
+    }
+  }
+}
+
+function isCriticalOperationActive() {
+  return _criticalOperationDepth > 0
+}
+
 // 创建 axios 实例
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api', // 您设置了 /api 后缀，确认后端路由是否匹配
-  timeout: 10000, // 设置请求超时时间
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api',
+  timeout: 0,
   headers: {
     'Content-Type': 'application/json'
   }
@@ -47,15 +74,14 @@ apiClient.interceptors.response.use(
       if (status === 401) {
         // --- 处理 401 Unauthorized ---
         // 可能是 Token 过期或无效
+        if (isCriticalOperationActive()) {
+          console.warn('Unauthorized access (401) during critical operation. Deferring redirect until operation finishes.')
+          _pending401Redirect = true
+          return Promise.reject(error)
+        }
         console.warn('Unauthorized access (401). Clearing token and redirecting to login.')
         localStorage.removeItem('authToken')
-        // 可以在这里添加更复杂的逻辑，比如尝试刷新 Token (如果后端支持)
-        // 使用 Vue Router 跳转而不是直接修改 window.location (更推荐)
-        // import router from '@/router'; // 假设你的 router 在这里
-        // router.push('/login');
-        // 暂时先用 window.location 跳转
         window.location.href = '/login'
-        // 返回一个已被处理的 Promise，避免后续代码继续处理这个错误
         return Promise.reject(new Error('Unauthorized: Redirecting to login.'))
 
       } else if (status >= 400 && status < 500) {

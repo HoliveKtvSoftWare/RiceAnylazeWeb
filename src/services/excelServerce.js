@@ -19,10 +19,7 @@ const exportSingleToExcel = (analysisId, originalFilename, selectedColumns, unit
         timeout: 30000
     }).then(response => {
         console.debug('Single Excel export successful');
-        const baseName = originalFilename
-            ? `${originalFilename.replace(/\.[^.]+$/, '')}.xlsx`
-            : `${analysisId}.xlsx`;
-        const filename = downloadBlob(response, baseName, context, true, unit);
+        const filename = downloadBlob(response, `${analysisId}.xlsx`, context, false, unit);
         return { filename };
     }).catch(error => {
         console.error('Failed to export single Excel:', error.response?.data || error.message);

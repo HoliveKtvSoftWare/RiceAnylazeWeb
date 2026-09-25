@@ -6,10 +6,7 @@ const exportSingleJson = (analysisId, originalFilename, context = null) => {
   return apiClient.get('/export/json/' + analysisId, {
     responseType: 'blob'
   }).then(response => {
-    const baseName = originalFilename
-      ? `${originalFilename.replace(/\.[^.]+$/, '')}.json`
-      : `${analysisId}.json`;
-    const filename = downloadBlob(response, baseName, context, true);
+    const filename = downloadBlob(response, `${analysisId}.json`, context);
     return { success: true, filename };
   }).catch(error => {
     console.error('Failed to export single JSON:', error.response?.data || error.message);

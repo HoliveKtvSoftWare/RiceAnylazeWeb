@@ -1,64 +1,84 @@
 <template>
   <div class="login-container">
-    <div class="login-form">
-    <h2>🌾水稻微表型结构分割平台</h2>
-    <form @submit.prevent="handleLogin">
-      <div class="form-group">
-        <label for="email">邮箱:</label>
-        <input type="email" id="email" v-model="email" required />
+    <div class="login-card">
+      <div class="card-header">
+        <div class="brand-icon">🌾</div>
+        <h2>欢迎回来</h2>
+        <p class="card-subtitle">登录以继续使用水稻微表型分析平台</p>
       </div>
-      <div class="form-group">
-        <label for="password">密码:</label>
-        <input type="password" id="password" v-model="password" required />
+      <form @submit.prevent="handleLogin" class="login-form">
+        <div class="form-group">
+          <label for="email">邮箱地址</label>
+          <div class="input-wrapper">
+            <span class="input-icon">📧</span>
+            <input
+              type="email"
+              id="email"
+              v-model="email"
+              placeholder="请输入您的邮箱"
+              required
+              autocomplete="email"
+            />
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="password">密码</label>
+          <div class="input-wrapper">
+            <span class="input-icon">🔒</span>
+            <input
+              type="password"
+              id="password"
+              v-model="password"
+              placeholder="请输入您的密码"
+              required
+              autocomplete="current-password"
+            />
+          </div>
+        </div>
+        <transition name="form-msg">
+          <div v-if="errorMessage" class="error-message">
+            <span class="msg-icon">⚠️</span>
+            {{ errorMessage }}
+          </div>
+        </transition>
+        <button type="submit" class="submit-button" :disabled="isLoading">
+          <span v-if="isLoading" class="loading-spinner"></span>
+          <span v-else class="btn-text">登 录</span>
+        </button>
+      </form>
+      <div class="card-footer">
+        <span>还没有账户？</span>
+        <router-link to="/register" class="register-link">立即注册 →</router-link>
       </div>
-      <div v-if="errorMessage" class="error-message">
-        {{ errorMessage }}
-      </div>
-      <button type="submit" :disabled="isLoading">
-        {{ isLoading ? '登录中...' : '登录' }}
-      </button>
-    </form>
-    <p>
-      还没有账户？ <router-link to="/register">去注册</router-link>
-    </p>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue';
-import { useRouter } from 'vue-router'; // 1. 导入 useRouter
-import { useAuthStore } from '@/stores/auth'; // 2. 导入 auth store
+import { useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
 
-// --- 响应式状态 ---
 const email = ref('');
 const password = ref('');
-const errorMessage = ref(''); // 用于显示登录错误信息
-const isLoading = ref(false); // 用于控制按钮禁用和显示加载状态
+const errorMessage = ref('');
+const isLoading = ref(false);
 
-// --- 获取 Store 和 Router 实例 ---
-const authStore = useAuthStore(); // 3. 获取 auth store 实例
-const router = useRouter(); // 4. 获取 router 实例
+const authStore = useAuthStore();
+const router = useRouter();
 
-// --- 方法 ---
 const handleLogin = async () => {
-  isLoading.value = true; // 开始登录，设置加载状态
-  errorMessage.value = ''; // 清除旧的错误信息
+  isLoading.value = true;
+  errorMessage.value = '';
 
-  // 5. 调用 store 中的 loginAction
   const success = await authStore.loginAction(email.value, password.value);
 
-  isLoading.value = false; // 结束登录，清除加载状态
+  isLoading.value = false;
 
   if (success) {
-    // 6. 登录成功 -> 跳转到主看板页
-    console.log('Login successful, navigating to home...');
     router.push({ name: 'home' });
   } else {
-    // 7. 登录失败 -> 显示错误信息
-    // 简单的错误提示，可以根据 authStore 中可能设置的更具体的错误信息来改进
     errorMessage.value = '邮箱或密码错误，请重试。';
-    console.error('Login failed in component.');
   }
 };
 </script>
@@ -66,58 +86,200 @@ const handleLogin = async () => {
 <style scoped>
 .login-container {
   display: flex;
-  justify-content: center; /* 水平居中 */
-  align-items: center; /* 垂直居中 */
+  justify-content: center;
+  align-items: center;
   min-height: 100vh;
   width: 100%;
+  padding: 20px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 40px 36px 32px;
+  border-radius: var(--radius-xl);
+  text-align: center;
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: var(--shadow-2xl);
+  animation: cardIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(30px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.card-header {
+  margin-bottom: 32px;
+}
+
+.brand-icon {
+  font-size: 48px;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  background: linear-gradient(135deg, var(--color-primary-green-lightest), var(--color-primary-green-light));
+  border-radius: var(--radius-xl);
+  box-shadow: 0 4px 16px rgba(76, 175, 80, 0.2);
+  animation: iconFloat 3s ease-in-out infinite;
+}
+
+@keyframes iconFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.card-header h2 {
+  margin: 0;
+  font-size: 1.5em;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: 0.3px;
+}
+
+.card-subtitle {
+  margin: 8px 0 0;
+  font-size: 0.88em;
+  color: var(--color-text-muted);
 }
 
 .login-form {
-  max-width: 400px;
-  padding: 20px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  text-align: center;
-  background-color: rgba(255, 255, 255, 0.7);
-  width: 100%;
+  text-align: left;
 }
 
 .form-group {
-  margin-bottom: 15px;
-  text-align: left;
+  margin-bottom: 18px;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 5px;
+  margin-bottom: 8px;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.3px;
 }
 
-.form-group input {
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 14px;
+  font-size: 1em;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.input-wrapper input {
   width: 100%;
-  padding: 8px;
-  box-sizing: border-box;
+  padding: 12px 14px 12px 42px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.95em;
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+  transition: all var(--transition-normal);
+  outline: none;
+  margin-bottom: 0;
 }
 
-.error-message {
-  color: red;
-  margin-bottom: 15px;
+.input-wrapper input:focus {
+  border-color: var(--color-primary-green);
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.15);
 }
 
-button {
-  padding: 10px 15px;
-  background-color: #007bff;
+.input-wrapper input:focus + .input-icon,
+.input-wrapper:focus-within .input-icon {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.submit-button {
+  width: 100%;
+  padding: 13px 20px;
+  background: linear-gradient(135deg, var(--color-primary-green), var(--color-primary-green-dark));
   color: white;
   border: none;
-  border-radius: 2px;
+  border-radius: var(--radius-md);
   cursor: pointer;
+  font-size: 1em;
+  font-weight: 600;
+  letter-spacing: 2px;
+  margin-top: 8px;
+  transition: all var(--transition-normal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 4px 14px rgba(76, 175, 80, 0.35);
 }
 
-button:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
+.submit-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.45);
 }
 
-p {
-  margin-top: 20px;
+.submit-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.loading-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.msg-icon {
+  margin-right: 6px;
+}
+
+.form-msg-enter-active {
+  animation: msgIn 0.3s ease-out;
+}
+
+.form-msg-leave-active {
+  animation: msgOut 0.2s ease-in;
+}
+
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes msgOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-6px); }
+}
+
+.card-footer {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border-light);
+  font-size: 0.9em;
+  color: var(--color-text-muted);
+}
+
+.register-link {
+  font-weight: 600;
+  color: var(--color-primary-green-dark);
+  transition: all var(--transition-fast);
+}
+
+.register-link:hover {
+  color: var(--color-primary-green-darkest);
+  text-decoration: underline;
 }
 </style>

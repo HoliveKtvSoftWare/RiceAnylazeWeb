@@ -1,12 +1,5 @@
-import apiClient from './apiClient'; // 导入配置好的axios实例
+import apiClient from './apiClient';
 import { transformKeys } from '@/utils/transform';
-
-const getTimeoutByFileCount = (count) => {
-  if (count > 100) return 0;
-  if (count > 50) return 60000;
-  if (count > 10) return 25000;
-  return 10000;
-};
 
 /**
  * 获取后端可用的模型列表
@@ -24,7 +17,7 @@ const fetchModels = () => {
  * @param {string} [modelName] - 选中的模型名称（可选，不传则后端用默认模型）
  * @returns {Promise<object>} 后端返回的包含 analysis_id 的响应数据或抛出错误
  */
-const uploadFile = (file, batchId = null, fileCount = 1, modelName = null) => {
+const uploadFile = (file, batchId = null, fileCount = 1, modelName = null, onProgress = null) => {
   const formData = new FormData();
   formData.append('file', file);
   if (batchId) {
@@ -38,7 +31,11 @@ const uploadFile = (file, batchId = null, fileCount = 1, modelName = null) => {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
-    timeout: getTimeoutByFileCount(fileCount),
+    onUploadProgress: (event) => {
+      if (onProgress && event.total) {
+        onProgress(Math.round((event.loaded * 100) / event.total));
+      }
+    },
   }).then(response => transformKeys(response.data));
 };
 
@@ -48,7 +45,7 @@ const uploadFile = (file, batchId = null, fileCount = 1, modelName = null) => {
  * @param {string} [modelName] - 选中的模型名称（可选，整个批次用同一个模型）
  * @returns {Promise<object>} 后端返回的批量上传结果
  */
-const uploadFolder = (files, modelName = null) => {
+const uploadFolder = (files, modelName = null, onProgress = null) => {
   const fileArray = Array.from(files);
   const formData = new FormData();
   fileArray.forEach(file => {
@@ -62,7 +59,11 @@ const uploadFolder = (files, modelName = null) => {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
-    timeout: getTimeoutByFileCount(fileArray.length),
+    onUploadProgress: (event) => {
+      if (onProgress && event.total) {
+        onProgress(Math.round((event.loaded * 100) / event.total));
+      }
+    },
   }).then(response => transformKeys(response.data));
 };
 

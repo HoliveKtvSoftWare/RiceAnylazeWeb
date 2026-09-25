@@ -1,14 +1,13 @@
 import { defineStore } from 'pinia';
-import { ref, reactive } from 'vue';
+import { ref } from 'vue';
 import { analysisService } from '@/services/analysisService'; // 导入分析服务
 
 export const useAnalysisStore = defineStore('analysis', () => {
-  const jobs = ref([]); // 存储用户本次会话提交的任务
-  const isLoading = ref(false); // 标记文件上传或获取历史的状态
-  const error = ref(null); // 存储操作中的错误信息
-  const historyList = ref([]); // 存储从后端获取的完整历史记录
+  const isLoading = ref(false);
+  const error = ref(null);
+  const historyList = ref([]);
   /** @type {{analysisId: string, originalFilename: string, originalImageUrl: string, annotatedImageUrl: string, status: string, createdAt: string, batchId?: string} | null} */
-  const selectedJob = ref(null); // 存储当前选中的历史记录对象
+  const selectedJob = ref(null);
 
   /** @type {Array<{name: string, path: string}>} */
   const availableModels = ref([]);
@@ -16,18 +15,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
   const currentModelName = ref(null);
   const modelsLoaded = ref(false);
   const modelsLoading = ref(false);
-
-  const uiTriggers = reactive({
-    selectSingleFile: 0,
-    selectFolder: 0,
-    uploadSingle: 0,
-    uploadFolder: 0,
-  });
-
-  function triggerSelectSingleFile() { uiTriggers.selectSingleFile++; }
-  function triggerSelectFolder() { uiTriggers.selectFolder++; }
-  function triggerUploadSingle() { uiTriggers.uploadSingle++; }
-  function triggerUploadFolder() { uiTriggers.uploadFolder++; }
 
   /**
    * 设置/清除错误信息
@@ -65,16 +52,15 @@ export const useAnalysisStore = defineStore('analysis', () => {
    * @param {string} batchId - 批次ID，用于标识同一次上传的多个文件
    * @param {string} [modelName] - 选中的模型名称（可选）
    */
-  async function uploadFileAction(file, batchId = null, fileCount = 1, modelName = null) {
-    isLoading.value = true;
+  async function uploadFileAction(file, batchId = null, fileCount = 1, modelName = null, onProgress = null, manageLoading = true) {
+    if (manageLoading) isLoading.value = true;
     setError(null);
     try {
-      const responseData = await analysisService.uploadFile(file, batchId, fileCount, modelName);
+      const responseData = await analysisService.uploadFile(file, batchId, fileCount, modelName, onProgress);
       console.log('Upload successful, response:', responseData);
 
       if (responseData.analysisId && responseData.originalFilename) {
-        // 上传成功后刷新历史列表
-        await fetchHistoryAction();
+        await fetchHistoryAction(false);
       } else {
         console.error('Upload response missing analysis_id or original_filename:', responseData);
         setError('上传响应无效。'); // 调用 action 设置错误
@@ -87,7 +73,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       setError(detail); // 调用 action 设置错误
       return false; // 表示上传操作失败
     } finally {
-      isLoading.value = false;
+      if (manageLoading) isLoading.value = false;
     }
   }
 
@@ -96,15 +82,14 @@ export const useAnalysisStore = defineStore('analysis', () => {
    * @param {FileList|Array} files - 文件夹中的文件列表
    * @param {string} [modelName] - 选中的模型名称（可选，整个批次用同一个模型）
    */
-  async function uploadFolderAction(files, modelName = null) {
-    isLoading.value = true;
+  async function uploadFolderAction(files, modelName = null, onProgress = null, manageLoading = true) {
+    if (manageLoading) isLoading.value = true;
     setError(null);
     try {
-      const responseData = await analysisService.uploadFolder(files, modelName);
+      const responseData = await analysisService.uploadFolder(files, modelName, onProgress);
       console.log('Folder upload successful, response:', responseData);
 
-      // 上传成功后刷新历史列表
-      await fetchHistoryAction();
+      await fetchHistoryAction(false);
 
       return responseData; // 返回响应数据
     } catch (err) {
@@ -113,29 +98,32 @@ export const useAnalysisStore = defineStore('analysis', () => {
       setError(detail);
       return null;
     } finally {
-      isLoading.value = false;
+      if (manageLoading) isLoading.value = false;
     }
   }
 
   /**
    * 获取分析历史记录
+   * @param {boolean} [manageLoading=true] - 是否管理全局 isLoading 状态
    */
-  async function fetchHistoryAction() {
-    isLoading.value = true;
-    setError(null); // 调用 action 清除错误
+  async function fetchHistoryAction(manageLoading = true) {
+    if (manageLoading) isLoading.value = true;
+    setError(null);
     try {
-      // 调用 service 获取历史数据
       const historyData = await analysisService.getHistory();
-      // 更新 historyList 状态
       historyList.value = historyData;
-      console.log('History updated in store:', historyList.value);
+      if (selectedJob.value) {
+        const updated = historyData.find(j => j.analysisId === selectedJob.value.analysisId);
+        if (updated) {
+          selectedJob.value = updated;
+        }
+      }
     } catch (err) {
       console.error('Fetch history action failed:', err);
-      // error.value = '无法加载分析历史记录。'; // 不再直接修改
-      setError('无法加载分析历史记录。'); // 调用 action 设置错误
-      historyList.value = []; // 出错时清空列表
+      setError('无法加载分析历史记录。');
+      historyList.value = [];
     } finally {
-      isLoading.value = false;
+      if (manageLoading) isLoading.value = false;
     }
   }
 
@@ -202,12 +190,10 @@ export const useAnalysisStore = defineStore('analysis', () => {
   }
 
   return {
-    jobs,
     isLoading,
     error,
     historyList,
     selectedJob,
-    uiTriggers,
     availableModels,
     defaultModelName,
     currentModelName,
@@ -221,9 +207,5 @@ export const useAnalysisStore = defineStore('analysis', () => {
     setError,
     deleteJobAction,
     batchDeleteAction,
-    triggerSelectSingleFile,
-    triggerSelectFolder,
-    triggerUploadSingle,
-    triggerUploadFolder,
   };
 });
