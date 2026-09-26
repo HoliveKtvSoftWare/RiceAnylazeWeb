@@ -74,10 +74,6 @@ defineExpose({ collapsed });
   overflow: hidden;
 }
 
-.app-sidebar.collapsed {
-  width: 72px;
-}
-
 .sidebar-logo {
   display: flex;
   align-items: center;
@@ -285,17 +281,6 @@ nav li {
   opacity: 0;
   width: 0;
   flex: none;
-}
-
-.active-link {
-  background: linear-gradient(135deg, rgba(76, 175, 80, 0.4), rgba(129, 199, 132, 0.25));
-  color: white;
-  font-weight: 600;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2), 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.active-link::before {
-  height: 70%;
 }
 
 .active-link .nav-icon {
