@@ -17,7 +17,7 @@ const fetchModels = () => {
  * @param {string} [modelName] - 选中的模型名称（可选，不传则后端用默认模型）
  * @returns {Promise<object>} 后端返回的包含 analysis_id 的响应数据或抛出错误
  */
-const uploadFile = (file, batchId = null, fileCount = 1, modelName = null, onProgress = null) => {
+const uploadFile = (file, batchId = null, modelName = null, onProgress = null, batchName = null) => {
   const formData = new FormData();
   formData.append('file', file);
   if (batchId) {
@@ -25,6 +25,9 @@ const uploadFile = (file, batchId = null, fileCount = 1, modelName = null, onPro
   }
   if (modelName) {
     formData.append('model_name', modelName);
+  }
+  if (batchName) {
+    formData.append('batch_name', batchName);
   }
 
   return apiClient.post('/analysis/upload', formData, {
@@ -45,7 +48,7 @@ const uploadFile = (file, batchId = null, fileCount = 1, modelName = null, onPro
  * @param {string} [modelName] - 选中的模型名称（可选，整个批次用同一个模型）
  * @returns {Promise<object>} 后端返回的批量上传结果
  */
-const uploadFolder = (files, modelName = null, onProgress = null) => {
+const uploadFolder = (files, modelName = null, onProgress = null, batchName = null) => {
   const fileArray = Array.from(files);
   const formData = new FormData();
   fileArray.forEach(file => {
@@ -53,6 +56,9 @@ const uploadFolder = (files, modelName = null, onProgress = null) => {
   });
   if (modelName) {
     formData.append('model_name', modelName);
+  }
+  if (batchName) {
+    formData.append('batch_name', batchName);
   }
 
   return apiClient.post('/analysis/upload/batch', formData, {

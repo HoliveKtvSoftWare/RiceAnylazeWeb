@@ -40,7 +40,8 @@
           <div class="job-details">
             <p><strong>状态:</strong>
               <span v-if="analysisStore.selectedJob" class="status-tag" :class="`status-${analysisStore.selectedJob.status}`">
-                       {{ translateStatus(analysisStore.selectedJob.status) }}
+                <span v-if="analysisStore.selectedJob.status === 'processing'" class="status-spinner"></span>
+                {{ translateStatus(analysisStore.selectedJob.status) }}
               </span>
               <span v-else class="status-tag status-unselected">未选中</span>
             </p>
@@ -190,8 +191,8 @@
 
           <aside class="job-list-section card" ref="jobListSectionRef">
             <div class="section-header">
-              <h3>分割记录</h3>
-              <div class="section-actions">
+              <div class="section-title-row">
+                <h3>分割记录</h3>
                 <label class="select-all-checkbox" :class="{ 'has-selection': selectedAnalysisIds.length > 0 }">
                   <input
                       type="checkbox"
@@ -204,6 +205,8 @@
                   </span>
                   全选
                 </label>
+              </div>
+              <div class="section-actions">
                 <button
                     @click="batchExportJson"
                     :disabled="isExporting || selectedCompletedCount === 0"
@@ -279,7 +282,7 @@
                   </span>
                   <span class="batch-label">
                     <template v-if="group.hasFolder">
-                      文件夹 ({{ group.jobs.length }} 个文件)
+                      {{ getGroupBatchName(group) || `文件夹 (${group.jobs.length} 个文件)` }}
                     </template>
                     <template v-else>
                       {{ group.jobs[0]?.originalFilename }}
@@ -435,6 +438,33 @@ const generateBatchId = () => {
   return 'batch_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 };
 
+// 从文件夹上传的文件列表中提取最顶层文件夹名称
+const extractFolderName = (files) => {
+  for (const file of files) {
+    if (file.webkitRelativePath && file.webkitRelativePath.length > 0) {
+      const parts = file.webkitRelativePath.split('/');
+      if (parts.length > 0 && parts[0]) {
+        return parts[0];
+      }
+    }
+  }
+  return null;
+};
+
+// 生成本地存储的批次名称（优先用后端返回的，其次用 localStorage）
+const getGroupBatchName = (group) => {
+  const firstJob = group.jobs[0];
+  const backendName = firstJob?.batchName || firstJob?.batch_name;
+  if (backendName) return backendName;
+
+  if (group.batchId && !group.batchId.startsWith('single_')) {
+    const storedName = analysisStore.getBatchName(group.batchId);
+    if (storedName) return storedName;
+  }
+
+  return null;
+};
+
 // 当前上传批次ID
 const currentBatchId = ref(null);
 
@@ -587,11 +617,11 @@ const handleExcelDownload = async (downloadData) => {
     if (!id) return;
     const job = analysisStore.historyList.find(j => j.analysisId === id) || analysisStore.selectedJob;
     const originalFilename = job?.originalFilename || '';
-    success = await excelStore.downloadSingleExcelAction(id, originalFilename, downloadData.columns, downloadData.unit, '茎秆');
+    success = await excelStore.downloadSingleExcelAction(id, originalFilename, downloadData.columns, downloadData.unit);
   } else if (downloadData.type === 'batch') {
-    success = await excelStore.downloadBatchExcelAction(selectedAnalysisIds.value, downloadData.columns, downloadData.unit, '茎秆');
+    success = await excelStore.downloadBatchExcelAction(selectedAnalysisIds.value, downloadData.columns, downloadData.unit);
   } else if (downloadData.type === 'summary') {
-    success = await excelStore.downloadExcelSummaryAction(downloadData.columns, downloadData.unit, '茎秆');
+    success = await excelStore.downloadExcelSummaryAction(downloadData.columns, downloadData.unit);
   }
   if (success) {
     console.log('Excel download initiated:', downloadData.type, selectedAnalysisIds.value.length, 'items');
@@ -614,10 +644,10 @@ const batchExportJson = async () => {
     if (ids.length === 1) {
       const job = analysisStore.historyList.find(j => j.analysisId === ids[0]) || analysisStore.selectedJob;
       const originalFilename = job?.originalFilename || '';
-      await exportService.exportSingleJson(ids[0], originalFilename, '茎秆');
+      await exportService.exportSingleJson(ids[0], originalFilename);
       console.log('Single JSON export successful');
     } else {
-      await exportService.batchExportJson(ids, '茎秆');
+      await exportService.batchExportJson(ids);
       console.log('Batch JSON export successful');
     }
     selectedAnalysisIds.value = selectedAnalysisIds.value.filter(id => !ids.includes(id));
@@ -816,6 +846,7 @@ const handleFolderUpload = async () => {
   analysisStore.isLoading = true;
 
   const totalFiles = selectedFolderFiles.value.length;
+  const folderName = extractFolderName(selectedFolderFiles.value);
   uploadProgress.value = {
     visible: true,
     percent: 0,
@@ -825,7 +856,7 @@ const handleFolderUpload = async () => {
     phase: 'uploading'
   };
 
-  console.log(`上传文件夹，共 ${totalFiles} 个文件，使用模型: ${analysisStore.currentModelName}`);
+  console.log(`上传文件夹 "${folderName}"，共 ${totalFiles} 个文件，使用模型: ${analysisStore.currentModelName}`);
   let response = null;
   beginCriticalOperation();
   try {
@@ -833,7 +864,8 @@ const handleFolderUpload = async () => {
       selectedFolderFiles.value,
       analysisStore.currentModelName,
       (percent) => { uploadProgress.value.percent = percent; },
-      false
+      false,
+      folderName
     );
   } finally {
     analysisStore.isLoading = false;
@@ -846,6 +878,13 @@ const handleFolderUpload = async () => {
     uploadProgress.value.currentFile = '上传完成，后端处理中...';
     setTimeout(() => { uploadProgress.value.visible = false; }, 2500);
     uploadSuccessMessage.value = `已成功提交 ${totalFiles} 个文件进行批量处理...`;
+
+    let batchId = null;
+    if (Array.isArray(analysisStore.historyList) && analysisStore.historyList.length > 0) {
+      const latestJob = analysisStore.historyList[0];
+      batchId = latestJob.batchId || null;
+    }
+    analysisStore.startBatchProgressPolling('stem', totalFiles, batchId);
   } else {
     uploadProgress.value.visible = false;
   }
@@ -908,6 +947,7 @@ const handleFileUpload = async () => {
   const uploadedCount = [];
 
   const totalFiles = selectedFiles.value.length;
+  const batchName = totalFiles > 1 ? `批量上传 (${totalFiles} 个文件)` : null;
   let completedIndex = 0;
 
   uploadProgress.value = {
@@ -932,8 +972,8 @@ const handleFileUpload = async () => {
 
       console.log(`上传文件: ${file.name}, 使用模型: ${analysisStore.currentModelName}, 批次ID: ${currentBatchId.value}`);
       const success = await analysisStore.uploadFileAction(
-        file, currentBatchId.value, totalFiles, analysisStore.currentModelName,
-        updatePercent, false
+        file, currentBatchId.value, analysisStore.currentModelName,
+        updatePercent, false, batchName
       );
       if (success) {
         uploadedCount.push(file.name);
@@ -952,6 +992,8 @@ const handleFileUpload = async () => {
     uploadProgress.value.currentFile = `全部 ${uploadedCount.length} 个文件上传完成，后端处理中...`;
     uploadProgress.value.completed = totalFiles;
     setTimeout(() => { uploadProgress.value.visible = false; }, 2500);
+
+    analysisStore.startBatchProgressPolling('stem', totalFiles, currentBatchId.value);
 
     if (uploadedCount.length === 1) {
       uploadSuccessMessage.value = `文件 "${uploadedCount[0]}" 已成功提交后台处理...`;
@@ -1596,6 +1638,12 @@ h3::before {
   gap: 10px;
 }
 
+.section-title-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .section-header h3 {
   margin-bottom: 0;
   border-bottom: none;
@@ -2195,7 +2243,24 @@ h3::before {
   font-weight: 600;
   min-width: 60px;
   text-align: center;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.status-spinner {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: statusSpin 0.7s linear infinite;
+}
+
+@keyframes statusSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .status-tag.status-processing {

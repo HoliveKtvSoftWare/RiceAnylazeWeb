@@ -1,12 +1,12 @@
 import apiClient from './apiClient';
 import { downloadBlob } from '@/utils/fileDownload';
 
-const exportSingleJson = (analysisId, originalFilename, context = null) => {
+const exportSingleJson = (analysisId, originalFilename) => {
   console.debug('Exporting JSON for analysis:', analysisId, originalFilename);
   return apiClient.get('/export/json/' + analysisId, {
     responseType: 'blob'
   }).then(response => {
-    const filename = downloadBlob(response, `${analysisId}.json`, context);
+    const filename = downloadBlob(response, 'export.json');
     return { success: true, filename };
   }).catch(error => {
     console.error('Failed to export single JSON:', error.response?.data || error.message);
@@ -24,15 +24,14 @@ const previewJson = (analysisId) => {
     });
 };
 
-const batchExportJson = (analysisIds, context = null) => {
+const batchExportJson = (analysisIds) => {
   const params = analysisIds.map(id => 'analysis_ids=' + encodeURIComponent(id)).join('&');
   console.debug('Batch exporting JSON for', analysisIds.length, 'analyses');
   return apiClient.post('/export/json/batch?' + params, null, {
     responseType: 'blob',
     timeout: 0
   }).then(response => {
-    const fallback = `batch_export_${analysisIds.length}files.zip`;
-    const filename = downloadBlob(response, fallback, context);
+    const filename = downloadBlob(response, 'batch_export.zip');
     return { success: true, filename };
   }).catch(error => {
     console.error('Failed to batch export JSON:', error.response?.data || error.message);

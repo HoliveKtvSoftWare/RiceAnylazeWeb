@@ -12,14 +12,14 @@ const getExportColumns = () => {
         });
 };
 
-const exportSingleToExcel = (analysisId, originalFilename, selectedColumns, unit, context = null) => {
+const exportSingleToExcel = (analysisId, originalFilename, selectedColumns, unit) => {
     console.debug(`Exporting single analysis ${analysisId} (${originalFilename}) to Excel...`);
     return apiClient.post(`/excel/${analysisId}`, { selectedColumns, unit }, {
         responseType: 'blob',
         timeout: 30000
     }).then(response => {
         console.debug('Single Excel export successful');
-        const filename = downloadBlob(response, `${analysisId}.xlsx`, context, false, unit);
+        const filename = downloadBlob(response, 'export.xlsx');
         return { filename };
     }).catch(error => {
         console.error('Failed to export single Excel:', error.response?.data || error.message);
@@ -27,7 +27,7 @@ const exportSingleToExcel = (analysisId, originalFilename, selectedColumns, unit
     });
 };
 
-const batchExportToExcel = (analysisIds, selectedColumns, unit, asyncMode = false, context = null) => {
+const batchExportToExcel = (analysisIds, selectedColumns, unit, asyncMode = false) => {
     console.debug(`Batch exporting ${analysisIds.length} analyses to Excel, asyncMode:`, asyncMode);
     return apiClient.post('/excel/batch', { analysisIds, selectedColumns, unit, asyncMode }, {
         responseType: asyncMode ? 'json' : 'blob',
@@ -39,7 +39,7 @@ const batchExportToExcel = (analysisIds, selectedColumns, unit, asyncMode = fals
             return data;
         }
         console.debug('Batch Excel export successful (sync)');
-        const filename = downloadBlob(response, `batch_${analysisIds.length}_items.xlsx`, context, false, unit);
+        const filename = downloadBlob(response, 'batch_export.xlsx');
         return { filename };
     }).catch(error => {
         console.error('Failed to batch export Excel:', error.response?.data || error.message);
@@ -47,7 +47,7 @@ const batchExportToExcel = (analysisIds, selectedColumns, unit, asyncMode = fals
     });
 };
 
-const exportAllToExcel = (selectedColumns, unit, asyncMode = true, context = null) => {
+const exportAllToExcel = (selectedColumns, unit, asyncMode = true) => {
     console.debug('Exporting all analyses to Excel, asyncMode:', asyncMode);
     return apiClient.post('/excel/summary', { selectedColumns, unit, asyncMode }, {
         responseType: asyncMode ? 'json' : 'blob',
@@ -59,7 +59,7 @@ const exportAllToExcel = (selectedColumns, unit, asyncMode = true, context = nul
             return data;
         }
         console.debug('Summary Excel export successful (sync)');
-        const filename = downloadBlob(response, 'summary.xlsx', context, false, unit);
+        const filename = downloadBlob(response, 'summary.xlsx');
         return { filename };
     }).catch(error => {
         console.error('Failed to export all Excel:', error.response?.data || error.message);
@@ -76,12 +76,12 @@ const getTaskStatus = (taskId) => {
         });
 };
 
-const downloadTaskResult = (taskId, fallbackName = 'export.xlsx', context = null) => {
+const downloadTaskResult = (taskId) => {
     return apiClient.get(`/excel/download/${taskId}`, {
         responseType: 'blob',
         timeout: 120000
     }).then(response => {
-        const filename = downloadBlob(response, fallbackName, context);
+        const filename = downloadBlob(response, 'export.xlsx');
         return { filename };
     }).catch(error => {
         console.error('Failed to download task result:', error.response?.data || error.message);
@@ -89,7 +89,7 @@ const downloadTaskResult = (taskId, fallbackName = 'export.xlsx', context = null
     });
 };
 
-const pollAndDownloadTask = (taskId, onProgress, interval = 1500, context = null) => {
+const pollAndDownloadTask = (taskId, onProgress, interval = 1500) => {
     return new Promise((resolve, reject) => {
         let attempts = 0;
         const maxAttempts = 300;
@@ -113,7 +113,7 @@ const pollAndDownloadTask = (taskId, onProgress, interval = 1500, context = null
                 if (status.status === 'completed') {
                     clearInterval(timer);
                     try {
-                        const result = await downloadTaskResult(taskId, status.filename || 'export.xlsx', context);
+                        const result = await downloadTaskResult(taskId);
                         resolve(result);
                     } catch (dlErr) {
                         reject(dlErr);

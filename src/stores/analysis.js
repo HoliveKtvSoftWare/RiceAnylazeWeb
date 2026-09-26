@@ -1,6 +1,41 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
-import { analysisService } from '@/services/analysisService'; // 导入分析服务
+import { ref, computed, watch } from 'vue';
+import { analysisService } from '@/services/analysisService';
+
+const BATCH_NAME_STORAGE_KEY = 'rice_analysis_batch_names';
+const BATCH_PROGRESS_STORAGE_KEY = 'rice_analysis_batch_progress';
+
+function loadBatchNameMap() {
+  try {
+    const raw = localStorage.getItem(BATCH_NAME_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* localStorage unavailable */ }
+  return {};
+}
+
+function saveBatchNameMap(map) {
+  try {
+    localStorage.setItem(BATCH_NAME_STORAGE_KEY, JSON.stringify(map));
+  } catch { /* localStorage unavailable */ }
+}
+
+function loadBatchProgress() {
+  try {
+    const raw = localStorage.getItem(BATCH_PROGRESS_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* localStorage unavailable */ }
+  return null;
+}
+
+function saveBatchProgress(progress) {
+  try {
+    if (progress && progress.visible) {
+      localStorage.setItem(BATCH_PROGRESS_STORAGE_KEY, JSON.stringify(progress));
+    } else {
+      localStorage.removeItem(BATCH_PROGRESS_STORAGE_KEY);
+    }
+  } catch { /* localStorage unavailable */ }
+}
 
 export const useAnalysisStore = defineStore('analysis', () => {
   const isLoading = ref(false);
@@ -9,12 +44,142 @@ export const useAnalysisStore = defineStore('analysis', () => {
   /** @type {{analysisId: string, originalFilename: string, originalImageUrl: string, annotatedImageUrl: string, status: string, createdAt: string, batchId?: string} | null} */
   const selectedJob = ref(null);
 
+  const batchNameMap = ref(loadBatchNameMap());
+
+  function setBatchName(batchId, name) {
+    if (!batchId || !name) return;
+    batchNameMap.value[batchId] = name;
+    saveBatchNameMap(batchNameMap.value);
+  }
+
+  function getBatchName(batchId) {
+    if (!batchId) return null;
+    return batchNameMap.value[batchId] || null;
+  }
+
   /** @type {Array<{name: string, path: string}>} */
   const availableModels = ref([]);
   const defaultModelName = ref(null);
   const currentModelName = ref(null);
   const modelsLoaded = ref(false);
   const modelsLoading = ref(false);
+
+  // 批次分割进度（全局浮层，跨页面保持）
+  const savedProgress = loadBatchProgress();
+  const batchProgress = ref(savedProgress || {
+    visible: false,
+    type: '',
+    batchId: null,
+    total: 0,
+    completed: 0
+  });
+  let batchPollingInterval = null;
+  let batchFinalHideTimer = null;
+
+  watch(batchProgress, (val) => {
+    saveBatchProgress(val);
+  }, { deep: true });
+
+  const batchProgressPercent = computed(() => {
+    const total = batchProgress.value.total;
+    const completed = batchProgress.value.completed;
+    if (!total || total <= 0) return 0;
+    return Math.min(100, Math.round((completed / total) * 1000) / 10);
+  });
+
+  function stopBatchProgressPolling() {
+    if (batchPollingInterval) {
+      clearInterval(batchPollingInterval);
+      batchPollingInterval = null;
+    }
+    if (batchFinalHideTimer) {
+      clearTimeout(batchFinalHideTimer);
+      batchFinalHideTimer = null;
+    }
+  }
+
+  function startBatchProgressPolling(type, totalCount, batchId = null) {
+    stopBatchProgressPolling();
+
+    batchProgress.value = {
+      visible: true,
+      type: type,
+      batchId: batchId,
+      total: totalCount,
+      completed: 0
+    };
+
+    const pollOnce = async () => {
+      try {
+        await fetchHistoryAction(false);
+
+        let targetJobs = historyList.value;
+        if (batchId) {
+          const filtered = historyList.value.filter(j => j.batchId === batchId);
+          if (filtered.length > 0) targetJobs = filtered;
+        }
+
+        const completedCount = targetJobs.filter(j => j.status !== 'processing').length;
+        batchProgress.value.completed = completedCount;
+
+        if (completedCount >= totalCount) {
+          stopBatchProgressPolling();
+          batchFinalHideTimer = setTimeout(() => {
+            batchProgress.value.visible = false;
+          }, 2000);
+        }
+      } catch (err) {
+        console.error('Batch progress polling error:', err);
+      }
+    };
+
+    pollOnce();
+    batchPollingInterval = setInterval(pollOnce, 2000);
+  }
+
+  function resumeBatchProgressPolling(type, totalCount, batchId, currentCompleted) {
+    stopBatchProgressPolling();
+
+    batchProgress.value = {
+      visible: true,
+      type: type,
+      batchId: batchId,
+      total: totalCount,
+      completed: currentCompleted
+    };
+
+    const pollOnce = async () => {
+      try {
+        await fetchHistoryAction(false);
+
+        let targetJobs = historyList.value;
+        if (batchId) {
+          const filtered = historyList.value.filter(j => j.batchId === batchId);
+          if (filtered.length > 0) targetJobs = filtered;
+        }
+
+        const completedCount = targetJobs.filter(j => j.status !== 'processing').length;
+        batchProgress.value.completed = completedCount;
+
+        if (completedCount >= totalCount) {
+          stopBatchProgressPolling();
+          batchFinalHideTimer = setTimeout(() => {
+            batchProgress.value.visible = false;
+          }, 2000);
+        }
+      } catch (err) {
+        console.error('Batch progress polling error:', err);
+      }
+    };
+
+    pollOnce();
+    batchPollingInterval = setInterval(pollOnce, 2000);
+  }
+
+  function clearBatchProgress() {
+    stopBatchProgressPolling();
+    batchProgress.value = { visible: false, type: '', batchId: null, total: 0, completed: 0 };
+  }
 
   /**
    * 设置/清除错误信息
@@ -52,14 +217,17 @@ export const useAnalysisStore = defineStore('analysis', () => {
    * @param {string} batchId - 批次ID，用于标识同一次上传的多个文件
    * @param {string} [modelName] - 选中的模型名称（可选）
    */
-  async function uploadFileAction(file, batchId = null, fileCount = 1, modelName = null, onProgress = null, manageLoading = true) {
+  async function uploadFileAction(file, batchId = null, modelName = null, onProgress = null, manageLoading = true, batchName = null) {
     if (manageLoading) isLoading.value = true;
     setError(null);
     try {
-      const responseData = await analysisService.uploadFile(file, batchId, fileCount, modelName, onProgress);
+      const responseData = await analysisService.uploadFile(file, batchId, modelName, onProgress, batchName);
       console.log('Upload successful, response:', responseData);
 
       if (responseData.analysisId && responseData.originalFilename) {
+        if (batchId && batchName) {
+          setBatchName(batchId, batchName);
+        }
         await fetchHistoryAction(false);
       } else {
         console.error('Upload response missing analysis_id or original_filename:', responseData);
@@ -82,12 +250,17 @@ export const useAnalysisStore = defineStore('analysis', () => {
    * @param {FileList|Array} files - 文件夹中的文件列表
    * @param {string} [modelName] - 选中的模型名称（可选，整个批次用同一个模型）
    */
-  async function uploadFolderAction(files, modelName = null, onProgress = null, manageLoading = true) {
+  async function uploadFolderAction(files, modelName = null, onProgress = null, manageLoading = true, batchName = null) {
     if (manageLoading) isLoading.value = true;
     setError(null);
     try {
-      const responseData = await analysisService.uploadFolder(files, modelName, onProgress);
+      const responseData = await analysisService.uploadFolder(files, modelName, onProgress, batchName);
       console.log('Folder upload successful, response:', responseData);
+
+      const responseBatchId = responseData?.batchId || responseData?.batch_id;
+      if (responseBatchId && batchName) {
+        setBatchName(responseBatchId, batchName);
+      }
 
       await fetchHistoryAction(false);
 
@@ -189,6 +362,12 @@ export const useAnalysisStore = defineStore('analysis', () => {
     }
   }
 
+  // 刷新后恢复批次进度浮层
+  if (batchProgress.value.visible && batchProgress.value.total > 0 && batchProgress.value.completed < batchProgress.value.total) {
+    const { type, total, batchId, completed } = batchProgress.value;
+    resumeBatchProgressPolling(type, total, batchId, completed);
+  }
+
   return {
     isLoading,
     error,
@@ -199,6 +378,13 @@ export const useAnalysisStore = defineStore('analysis', () => {
     currentModelName,
     modelsLoaded,
     modelsLoading,
+    batchProgress,
+    batchProgressPercent,
+    batchNameMap,
+    setBatchName,
+    getBatchName,
+    startBatchProgressPolling,
+    clearBatchProgress,
     uploadFileAction,
     uploadFolderAction,
     fetchHistoryAction,

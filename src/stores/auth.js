@@ -85,14 +85,17 @@ export const useAuthStore = defineStore('auth', () => {
   // Action: 处理登出逻辑
   async function logoutAction() {
     console.log('Logging out...');
+    // 清除全局分割进度
+    try {
+      const { useAnalysisStore } = await import('@/stores/analysis');
+      useAnalysisStore().clearBatchProgress();
+    } catch { /* 忽略清理失败 */ }
     // 清除 Pinia store 中的状态
     token.value = null;
     user.value = null;
     // 清除 localStorage 中的持久化数据
     localStorage.removeItem('authToken');
     localStorage.removeItem('authUser');
-    // (可选) 跳转到登录页面 - 推荐在组件或路由守卫中处理跳转
-    // router.push('/login');
     console.log('Logout complete.');
   }
 
