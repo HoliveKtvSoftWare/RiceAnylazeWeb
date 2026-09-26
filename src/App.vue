@@ -146,24 +146,6 @@ onMounted(async () => {
   overflow-y: auto;
 }
 
-.layout-fade-enter-active,
-.layout-fade-leave-active {
-  transition: opacity var(--transition-normal);
-}
-
-.layout-fade-enter-from,
-.layout-fade-leave-to {
-  opacity: 0;
-}
-
-.page-fade-enter-active {
-  animation: pageFadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.page-fade-leave-active {
-  animation: pageFadeOut 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
 @keyframes pageFadeIn {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
@@ -309,14 +291,6 @@ onMounted(async () => {
   white-space: nowrap;
   min-width: 36px;
   text-align: right;
-}
-
-.batch-progress-float-enter-active {
-  animation: batchProgressFloatIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.batch-progress-float-leave-active {
-  animation: batchProgressFloatOut 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @keyframes batchProgressFloatIn {

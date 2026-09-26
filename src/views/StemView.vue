@@ -1276,10 +1276,6 @@ h3::before {
   border: none;
 }
 
-.sidebar-title::after {
-  display: none;
-}
-
 .upload-controls {
   display: flex;
   flex-direction: column;
@@ -1648,10 +1644,6 @@ h3::before {
   margin-bottom: 0;
   border-bottom: none;
   padding-bottom: 0;
-}
-
-.section-header h3::before {
-  display: inline-block;
 }
 
 .section-actions {
