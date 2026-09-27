@@ -3,20 +3,22 @@
     <div class="modal-content" @click.stop>
       <div class="modal-header">
         <h3>{{ dialogTitle }}</h3>
-        <button class="close-button" @click="closeDownloadDialog">×</button>
+        <button class="close-button" @click="closeDownloadDialog" aria-label="关闭"><X :size="18" /></button>
       </div>
       <div class="modal-body">
         <div class="selection-controls">
           <label class="select-all-label">
             <input
               type="checkbox"
-              :checked="selectedColumns.length === availableColumns.length"
+              :checked="isAllColumnsSelected"
+              :disabled="availableColumns.length === 0"
               @change="toggleAllColumns"
             />
             全选/取消全选
           </label>
+          <span v-if="columnsLoading" class="columns-hint">正在加载数据项...</span>
         </div>
-        <div class="columns-grid">
+        <div class="columns-grid" v-if="availableColumns.length > 0">
           <label
             v-for="column in availableColumns"
             :key="column.key"
@@ -30,6 +32,11 @@
             {{ column.label }}
           </label>
         </div>
+        <div v-else-if="columnsError" class="columns-error">
+          {{ columnsError }}
+          <button class="retry-button" @click="loadAvailableColumns(true)">重试</button>
+        </div>
+        <div v-else-if="!columnsLoading" class="columns-hint">暂无可导出的数据项</div>
 
         <!-- 单位选择 -->
         <div class="unit-selector">
@@ -52,7 +59,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
+import { useExcelStore } from '@/stores/excel';
+import { X } from '@lucide/vue';
 
 const props = defineProps({
   visible: {
@@ -70,10 +79,17 @@ const props = defineProps({
   selectedCount: {
     type: Number,
     default: 1
+  },
+  // 当前查看/勾选任务所属的分析类型（stem/leaf），用于向后台获取对应的列集合
+  taskType: {
+    type: String,
+    default: ''
   }
 });
 
 const emit = defineEmits(['close', 'download']);
+
+const excelStore = useExcelStore();
 
 const dialogTitle = computed(() => {
   switch (props.downloadType) {
@@ -94,35 +110,87 @@ const confirmButtonText = computed(() => {
 });
 
 // Excel下载弹窗相关状态
-const selectedColumns = ref(['filename']);
+const DEFAULT_COLUMNS = ['filename']; // 默认勾选"样本名称"
+const selectedColumns = ref([...DEFAULT_COLUMNS]);
 const selectedUnit = ref('um');
 
-// 可下载的数据项配置
-const availableColumns = [
-  { key: 'filename', label: '样本名称' },
-  { key: 'largeTailCount', label: '大维管束数目' },
-  { key: 'smallTailCount', label: '小维管束数目' },
-  { key: 'totalCount', label: '总维管束数目' },
-  { key: 'largeTailArea', label: '大维管束面积' },
-  { key: 'smallTailArea', label: '小维管束面积' },
-  { key: 'stemDiameter', label: '茎秆直径' },
-  { key: 'stemPerimeter', label: '茎秆周长' },
-  { key: 'cavityArea', label: '空腔面积' },
-  { key: 'stemCavityAreaDiff', label: '茎秆面积与空腔面积差值' },
-  { key: 'largeSmallAreaRatio', label: '大维管束面积与小维管束面积比值' },
-  { key: 'largeSmallCountRatio', label: '大维管束数目与小维管束数目比值' },
-  { key: 'stemArea', label: '茎秆面积' },
-  { key: 'cavityStemAreaRatio', label: '空腔面积与茎秆面积比值' },
-  { key: 'smallCountPerimeterRatio', label: '小维管束数目与茎秆周长比值' },
-  { key: 'largeCountPerimeterCavityRatio', label: '大维管束数目与茎秆周长与空腔面积差值比值' }
-];
+// 数据项列表改为按分析类型从后端获取（不再前端硬编码）
+const availableColumns = ref([]); // [{ key, label }]
+const columnsLoading = ref(false);
+const columnsError = ref('');
+// 已按分析类型缓存过的列配置，避免同一类型重复请求
+const columnsCache = ref({});
+
+const isAllColumnsSelected = computed(() =>
+  availableColumns.value.length > 0 && selectedColumns.value.length === availableColumns.value.length
+);
+
+const getCacheKey = () => props.taskType || '';
+
+/**
+ * 获取当前分析类型对应的可导出列
+ * @param {boolean} force - 为 true 时忽略缓存重新请求
+ */
+const loadAvailableColumns = async (force = false) => {
+  const cacheKey = getCacheKey();
+  columnsError.value = '';
+
+  if (!force && columnsCache.value[cacheKey]) {
+    availableColumns.value = columnsCache.value[cacheKey];
+    return;
+  }
+
+  columnsLoading.value = true;
+  availableColumns.value = [];
+  try {
+    const result = await excelStore.fetchExportColumnsAction(cacheKey);
+    if (!result) {
+      columnsError.value = '获取导出列配置失败，请重试。';
+      return;
+    }
+    availableColumns.value = result.columns;
+    columnsCache.value = {
+      ...columnsCache.value,
+      [cacheKey]: result.columns,
+    };
+  } catch (err) {
+    console.error('Failed to load export columns:', err);
+    columnsError.value = '获取导出列配置失败，请重试。';
+  } finally {
+    columnsLoading.value = false;
+  }
+};
+
+// 重置勾选项：默认只勾"样本名称"；若后端未提供该列则退回"全选"
+const resetSelectedColumns = () => {
+  const keys = availableColumns.value.map(col => col.key);
+  if (keys.includes('filename')) {
+    selectedColumns.value = [...DEFAULT_COLUMNS];
+  } else if (keys.length > 0) {
+    selectedColumns.value = [...keys];
+  } else {
+    selectedColumns.value = [...DEFAULT_COLUMNS];
+  }
+};
+
+// 打开弹窗或分析类型变化时，重新拉取列配置并重置勾选状态
+watch(
+  () => [props.visible, props.taskType],
+  ([visible]) => {
+    if (!visible) return;
+    loadAvailableColumns().then(() => {
+      resetSelectedColumns();
+    });
+  },
+  { immediate: true }
+);
 
 // 全选/取消全选
 const toggleAllColumns = () => {
-  if (selectedColumns.value.length === availableColumns.length) {
+  if (isAllColumnsSelected.value) {
     selectedColumns.value = [];
   } else {
-    selectedColumns.value = availableColumns.map(col => col.key);
+    selectedColumns.value = availableColumns.value.map(col => col.key);
   }
 };
 
@@ -132,15 +200,16 @@ const downloadExcel = () => {
     type: props.downloadType,
     columns: selectedColumns.value,
     jobId: props.downloadType === 'single' ? props.job?.analysisId : null,
+    taskType: props.taskType || '',
     unit: selectedUnit.value
   });
 
   closeDownloadDialog();
 };
 
-// 关闭弹窗
+// 关闭弹窗：重置为默认勾选（避免下次打开时全不勾选、确认按钮禁用）
 const closeDownloadDialog = () => {
-  selectedColumns.value = [];
+  resetSelectedColumns();
   emit('close');
 };
 </script>
@@ -216,6 +285,9 @@ const closeDownloadDialog = () => {
   margin-bottom: 20px;
   padding-bottom: 15px;
   border-bottom: 1px solid #eee;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .select-all-label {
@@ -228,6 +300,39 @@ const closeDownloadDialog = () => {
 
 .select-all-label input {
   margin-right: 8px;
+}
+
+/* 列配置加载/错误提示 */
+.columns-hint {
+  display: inline-block;
+  font-size: 0.85em;
+  color: #888;
+}
+
+.columns-error {
+  padding: 16px;
+  background-color: #fff5f5;
+  border: 1px dashed var(--color-error, #dc3545);
+  border-radius: 4px;
+  color: var(--color-error, #dc3545);
+  font-size: 0.9em;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.retry-button {
+  padding: 4px 12px;
+  border: 1px solid var(--color-error, #dc3545);
+  background: white;
+  color: var(--color-error, #dc3545);
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.retry-button:hover {
+  background-color: #fdecea;
 }
 
 .columns-grid {

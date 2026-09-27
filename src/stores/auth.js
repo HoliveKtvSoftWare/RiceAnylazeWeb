@@ -3,6 +3,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { authService } from '@/services/authService'; // 导入我们的认证服务
+import { getAuthErrorMessage } from '@/utils/authErrorMessage';
 // import router from '@/router'; // 如果需要路由跳转，可以在这里导入
 
 export const useAuthStore = defineStore('auth', () => {
@@ -10,6 +11,7 @@ export const useAuthStore = defineStore('auth', () => {
   // 从 localStorage 初始化 token 和 user，实现持久化登录
   const token = ref(localStorage.getItem('authToken') || null);
   const user = ref(JSON.parse(localStorage.getItem('authUser')) || null);
+  const lastError = ref('');
 
   // --- Getters ---
   // 判断用户是否已登录
@@ -43,6 +45,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Action: 处理登录逻辑
   async function loginAction(email, password) {
+    lastError.value = '';
     try {
       // 调用 authService 的 login 函数
       const data = await authService.login(email, password);
@@ -63,6 +66,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
     } catch (error) {
       console.error('Login action failed:', error);
+      lastError.value = getAuthErrorMessage(error, '登录失败，请稍后重试。');
       await logoutAction(); // 登录失败也清理状态
       return false; // 表示登录失败
     }
@@ -70,6 +74,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Action: 处理注册逻辑
   async function registerAction(userData) {
+    lastError.value = '';
     try {
       // 调用 authService 的 register 函数
       const registeredUser = await authService.register(userData);
@@ -78,6 +83,7 @@ export const useAuthStore = defineStore('auth', () => {
       return true; // 表示注册成功
     } catch (error) {
       console.error('Register action failed:', error);
+      lastError.value = getAuthErrorMessage(error, '注册失败，请稍后重试。');
       return false; // 表示注册失败
     }
   }
@@ -116,6 +122,7 @@ export const useAuthStore = defineStore('auth', () => {
     // State refs
     token,
     user,
+    lastError,
     // Computed getters
     isAuthenticated,
     userQuota, // <-- 导出额度 getter

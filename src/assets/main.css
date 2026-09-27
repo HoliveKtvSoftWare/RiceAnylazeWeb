@@ -1,87 +1,262 @@
-/* src/assets/main.css */
+/* src/assets/main.css —— 全局主题与基础样式 */
 
-/* 定义颜色变量 */
+/* ============================================================
+   设计令牌
+   ============================================================ */
 :root {
-  --color-primary-green-darkest: #1b5e20;
-  --color-primary-green-dark: #2e7d32;
-  --color-primary-green: #4caf50;
-  --color-primary-green-light: #c8e6c9;
-  --color-primary-green-lightest: #e6f4ea;
+  /* 品牌绿（保留原有变量名，避免其它组件失效） */
+  --color-primary-green-darkest: #14532d;
+  --color-primary-green-dark: #1f7a3d;
+  --color-primary-green: #35a054;
+  --color-primary-green-light: #b7e0c2;
+  --color-primary-green-lightest: #eaf6ee;
 
-  --color-text: #2c3e50;
-  --color-background: #f4f4f4;
+  /* 中性色 */
+  --color-text: #1f2d3a;
+  --color-text-muted: #6b7a89;
+  --color-text-faint: #97a3af;
+  --color-border: #e4ece7;
+  --color-border-strong: #cfdcd4;
+  --color-background: #f2f7f3;
   --color-surface: #ffffff;
+  --color-surface-2: #f7faf8;
+
+  /* 语义色 */
   --color-error: #dc3545;
+  --color-warning: #ef8c00;
+  --color-info: #2f80ed;
+
+  /* 圆角 / 阴影 / 间距 */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  --shadow-xs: 0 1px 2px rgba(16, 40, 24, 0.06);
+  --shadow-sm: 0 2px 8px rgba(16, 40, 24, 0.06);
+  --shadow: 0 10px 28px rgba(16, 40, 24, 0.08);
+  --shadow-lg: 0 20px 48px rgba(16, 40, 24, 0.14);
+
+  /* 布局尺寸 */
+  --header-h: 62px;
+  --sidebar-w: 200px;
+
+  --font-sans: "Segoe UI", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB",
+               system-ui, -apple-system, Arial, sans-serif;
 }
 
-/* 应用基础背景色 */
+/* ============================================================
+   基础
+   ============================================================ */
+html,
 body {
-  background-image: url('@/assets/Login.jpg');
+  height: 100%;
+}
+
+body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  background-size: cover;
-  background-position: center;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* 应用内使用干净的浅色渐变背景；照片背景只在登录/注册页用 .with-photo-bg */
+  background: linear-gradient(180deg, #f7fbf8 0%, var(--color-background) 42%, #eef4f0 100%);
+  background-attachment: fixed;
 }
 
-/* 可以将一些通用按钮样式放在这里 */
+/* 登录/注册页的照片背景 */
+.with-photo-bg {
+  background-image:
+    linear-gradient(180deg, rgba(9, 30, 18, 0.45), rgba(9, 30, 18, 0.35)),
+    url('@/assets/Login.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+::selection {
+  background: var(--color-primary-green-light);
+  color: var(--color-primary-green-darkest);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary-green);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+/* 细滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c6d6cc transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #c6d6cc;
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #a9bfb1;
+}
+
+/* ============================================================
+   按钮
+   ============================================================ */
 button {
-  padding: 8px 12px;
-  border: none;
-  border-radius: 2px;
+  padding: 9px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 1em;
-  transition: background-color 0.2s, opacity 0.2s;
+  font-size: 0.95em;
+  font-family: inherit;
+  font-weight: 500;
+  transition: background-color 0.18s ease, box-shadow 0.18s ease,
+              color 0.18s ease, transform 0.06s ease;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 button:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
-/* 主题绿色按钮 */
 button.primary {
   background-color: var(--color-primary-green);
-  color: white;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(53, 160, 84, 0.28);
 }
+
 button.primary:hover:not(:disabled) {
   background-color: var(--color-primary-green-dark);
 }
 
-/* 链接样式 */
+/* 次级按钮：白底描边 */
+button.ghost {
+  background-color: var(--color-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+button.ghost:hover:not(:disabled) {
+  background-color: var(--color-surface-2);
+  border-color: var(--color-primary-green-light);
+}
+
+/* ============================================================
+   表单控件
+   ============================================================ */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="search"],
+select,
+textarea {
+  padding: 9px 11px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.95em;
+  box-sizing: border-box;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--color-primary-green);
+  box-shadow: 0 0 0 3px rgba(53, 160, 84, 0.15);
+  outline: none;
+}
+
+input[type="file"] {
+  border: none;
+  padding: 0;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--color-primary-green);
+  cursor: pointer;
+}
+
+/* ============================================================
+   链接与文本
+   ============================================================ */
 a {
   color: var(--color-primary-green-dark);
   text-decoration: none;
 }
+
 a:hover {
   text-decoration: underline;
 }
 
-/* 输入框样式 */
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="file"] {
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  box-sizing: border-box; /* 确保 padding 不会撑大元素 */
-  margin-bottom: 10px; /* 与下方元素留出间距 */
-}
-input[type="file"] {
-  border: none; /* 文件输入框通常不需要边框 */
+h1, h2, h3, h4, h5 {
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
-/* 错误消息 */
+/* 消息 */
 .error-message {
   color: var(--color-error);
   font-size: 0.9em;
   margin-top: 5px;
 }
-/* 成功消息 */
+
 .success-message {
   color: var(--color-primary-green-dark);
   font-size: 0.9em;
   margin-top: 5px;
+}
+
+/* 通用小标签 */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  font-size: 0.76em;
+  font-weight: 500;
+  background: var(--color-primary-green-lightest);
+  color: var(--color-primary-green-dark);
+  border: 1px solid rgba(31, 122, 61, 0.16);
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+/* 通用卡片（各页面可用；scoped 样式优先级更高，不会互相干扰） */
+.card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
 }

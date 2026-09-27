@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getAuthErrorMessage } from '@/utils/authErrorMessage'
 
 // 创建 axios 实例
 const apiClient = axios.create({
@@ -63,7 +64,10 @@ apiClient.interceptors.response.use(
         // 例如 400 Bad Request, 404 Not Found, 403 Forbidden
         // 通常这些错误表示前端发送的数据有问题或权限不足
         // 可以考虑在这里显示一个通用的错误提示给用户
-        alert(`客户端错误: ${error.response.data?.detail || error.message}`);
+        const message = getAuthErrorMessage(error, error.message)
+        const isAuthRequest = error.config?.url?.includes('/auth/')
+        error.userMessage = message
+        if (!isAuthRequest) alert(`客户端错误: ${message}`)
 
       } else if (status >= 500) {
         // --- 处理服务器端错误 (5xx) ---

@@ -1,19 +1,19 @@
 <template>
-  <div class="register-container">
+  <div class="register-container with-photo-bg">
     <div class="register-form">
     <h2>注册新账户</h2>
     <form @submit.prevent="handleRegister">
       <div class="form-group">
-        <label for="email">邮箱:</label>
-        <input type="email" id="email" v-model="email" required />
+        <label for="email">邮箱</label>
+        <input type="email" id="email" v-model="email" placeholder="you@example.com" required />
       </div>
       <div class="form-group">
-        <label for="password">密码:</label>
-        <input type="password" id="password" v-model="password" required />
+        <label for="password">密码</label>
+        <input type="password" id="password" v-model="password" placeholder="设置密码" required />
       </div>
       <div class="form-group">
-        <label for="confirmPassword">确认密码:</label>
-        <input type="password" id="confirmPassword" v-model="confirmPassword" required />
+        <label for="confirmPassword">确认密码</label>
+        <input type="password" id="confirmPassword" v-model="confirmPassword" placeholder="再次输入密码" required />
       </div>
 
       <div v-if="errorMessage" class="error-message">
@@ -23,11 +23,11 @@
         {{ successMessage }}
       </div>
 
-      <button type="submit" :disabled="isLoading">
+      <button type="submit" class="primary" :disabled="isLoading">
         {{ isLoading ? '注册中...' : '注册' }}
       </button>
     </form>
-    <p>
+    <p class="form-foot">
       已有账户？ <router-link to="/login">返回登录</router-link>
     </p>
     </div>
@@ -79,9 +79,8 @@ const handleRegister = async () => {
       router.push({ name: 'login' });
     }, 2000);
   } else {
-    // 6. 注册失败
-    // 这个错误信息可以做得更具体，比如从 store 中获取
-    errorMessage.value = '注册失败，该邮箱可能已被占用。';
+    // 6. 注册失败 -> 显示后端返回的可操作错误
+    errorMessage.value = authStore.lastError || '注册失败，请稍后重试。';
   }
 };
 </script>
@@ -93,16 +92,28 @@ const handleRegister = async () => {
   align-items: center;
   min-height: 100vh;
   width: 100%;
+  box-sizing: border-box;
+  padding: 24px;
 }
 
 .register-form {
   max-width: 400px;
-  padding: 20px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
+  padding: 28px 26px 22px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: var(--radius-lg, 16px);
   text-align: center;
-  background-color: rgba(255, 255, 255, 0.7);
+  background-color: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  box-shadow: var(--shadow-lg, 0 20px 48px rgba(16, 40, 24, 0.14));
   width: 100%;
+  box-sizing: border-box;
+}
+
+.register-form h2 {
+  margin: 0 0 20px;
+  font-size: 1.22em;
+  color: var(--color-primary-green-darkest, #14532d);
 }
 
 .form-group {
@@ -112,40 +123,41 @@ const handleRegister = async () => {
 
 .form-group label {
   display: block;
-  margin-bottom: 5px;
+  margin-bottom: 6px;
+  font-size: 0.85em;
+  font-weight: 500;
+  color: var(--color-text-muted, #6b7a89);
 }
 
 .form-group input {
   width: 100%;
-  padding: 8px;
   box-sizing: border-box;
 }
 
 .error-message {
-  color: red;
+  color: var(--color-error, #dc3545);
   margin-bottom: 15px;
+  font-size: 0.88em;
+  text-align: left;
 }
 
 .success-message {
-  color: green;
+  color: var(--color-primary-green-dark, #1f7a3d);
   margin-bottom: 15px;
+  font-size: 0.88em;
+  text-align: left;
 }
 
-button {
-  padding: 10px 15px;
-  background-color: #28a745; /* 绿色按钮以示区别 */
-  color: white;
-  border: none;
-  border-radius: 2px;
-  cursor: pointer;
+button[type="submit"] {
+  width: 100%;
+  padding: 11px 15px;
+  font-size: 1em;
+  margin-top: 4px;
 }
 
-button:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
-}
-
-p {
-  margin-top: 20px;
+.form-foot {
+  margin: 18px 0 0;
+  font-size: 0.88em;
+  color: var(--color-text-muted, #6b7a89);
 }
 </style>

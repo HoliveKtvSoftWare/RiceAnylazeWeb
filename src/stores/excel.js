@@ -6,18 +6,51 @@ export const useExcelStore = defineStore('excel', () => {
     const isLoading = ref(false);
     const error = ref(null);
     const exportColumns = ref([]);
+    const columnsTaskType = ref(''); // 上一次成功获取列配置所用的分析类型
 
     function setError(message) {
         error.value = message;
     }
+
+    /**
+     * 按分析类型获取可导出的列配置
+     * @param {string} [taskType] - 分析类型（stem/leaf）
+     * @returns {Promise<object|null>} { columns, message } 或 null（失败时 error 中带提示）
+     */
+    async function fetchExportColumnsAction(taskType = '') {
+        try {
+            const data = await excelService.getExportColumns(taskType || null);
+            const rawColumns = data?.available_columns || {};
+            // 后端返回 { 列key: 中文列名 }，转换为组件使用的 [{ key, label }]
+            exportColumns.value = Object.keys(rawColumns).map(key => ({
+                key,
+                label: rawColumns[key],
+            }));
+            columnsTaskType.value = taskType || '';
+            console.log('Export columns updated in store:', exportColumns.value);
+            return { columns: exportColumns.value, message: data?.message || '' };
+        } catch (err) {
+            console.error('Fetch export columns action failed:', err.response?.data || err.message);
+            exportColumns.value = [];
+            columnsTaskType.value = '';
+            const detail = err.response?.data?.detail || err.message || '获取导出列配置失败。';
+            setError(detail);
+            return null;
+        }
+    }
+
     /**
      * 下载单个分析任务的Excel报告
+     * @param {string} analysisId - 分析任务ID
+     * @param {Array<string>} selectedColumns - 选定的列
+     * @param {string} unit - 导出单位
+     * @param {string} [taskType] - 分析类型（后端以记录自身类型为准）
      */
-    async function downloadSingleExcelAction(analysisId, selectedColumns, unit) {
+    async function downloadSingleExcelAction(analysisId, selectedColumns, unit, taskType = '') {
         isLoading.value = true;
         setError(null);
         try {
-            const response = await excelService.exportSingleToExcel(analysisId, selectedColumns, unit);
+            const response = await excelService.exportSingleToExcel(analysisId, selectedColumns, unit, taskType || null);
             if (response.filename && response.content) {
                 const byteCharacters = atob(response.content);
                 const byteNumbers = new Array(byteCharacters.length);
@@ -52,12 +85,15 @@ export const useExcelStore = defineStore('excel', () => {
 
     /**
      * 下载所有分析记录的Excel总表
+     * @param {Array<string>} selectedColumns - 选定的列
+     * @param {string} unit - 导出单位
+     * @param {string} [taskType] - 分析类型（总表按此类型导出）
      */
-    async function downloadExcelSummaryAction(selectedColumns, unit) {
+    async function downloadExcelSummaryAction(selectedColumns, unit, taskType = '') {
         isLoading.value = true;
         setError(null);
         try {
-            const response = await excelService.exportAllToExcel(selectedColumns, unit);
+            const response = await excelService.exportAllToExcel(selectedColumns, unit, taskType || null);
             if (response.filename && response.content) {
                 const byteCharacters = atob(response.content);
                 const byteNumbers = new Array(byteCharacters.length);
@@ -90,11 +126,11 @@ export const useExcelStore = defineStore('excel', () => {
         }
     }
 
-    async function downloadBatchExcelAction(analysisIds, selectedColumns, unit) {
+    async function downloadBatchExcelAction(analysisIds, selectedColumns, unit, taskType = '') {
         isLoading.value = true;
         setError(null);
         try {
-            const response = await excelService.batchExportToExcel(analysisIds, selectedColumns, unit);
+            const response = await excelService.batchExportToExcel(analysisIds, selectedColumns, unit, taskType || null);
             if (response.filename && response.content) {
                 const byteCharacters = atob(response.content);
                 const byteNumbers = new Array(byteCharacters.length);
@@ -131,7 +167,9 @@ export const useExcelStore = defineStore('excel', () => {
         isLoading,
         error,
         exportColumns,
+        columnsTaskType,
         setError,
+        fetchExportColumnsAction,
         downloadSingleExcelAction,
         downloadBatchExcelAction,
         downloadExcelSummaryAction,

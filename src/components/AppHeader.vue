@@ -1,14 +1,23 @@
 <template>
   <header class="app-header">
     <div class="header-title">
-      <h1>🌾水稻茎秆微表型结构分割平台</h1>
+      <h1><Wheat class="title-icon" :size="22" aria-hidden="true" />水稻微表型结构分割平台</h1>
+      <span class="header-sub">茎秆截面 &amp; 剑叶切片 · 自动分割与指标导出</span>
     </div>
     <div class="user-info" v-if="authStore.isAuthenticated">
       <div class="dropdown" ref="dropdownRef" @click="openDropdown">
-        <span class="dropdown-trigger">欢迎, {{ authStore.user?.email || '用户' }} <span class="dropdown-arrow" :class="{ open: isDropdownOpen }">▼</span></span>
+        <span class="avatar">{{ userInitial }}</span>
+        <span class="dropdown-trigger">
+          {{ authStore.user?.email || '用户' }}
+          <ChevronDown class="dropdown-arrow" :class="{ open: isDropdownOpen }" :size="15" aria-hidden="true" />
+        </span>
         <div class="dropdown-menu" v-show="isDropdownOpen">
-          <button class="dropdown-item" @click.stop="goToUserCenter">用户中心</button>
-          <button class="dropdown-item logout-btn" @click.stop="handleLogout">退出登录</button>
+          <button class="dropdown-item" @click.stop="goToUserCenter">
+            <UserRound class="item-icon" :size="16" aria-hidden="true" />用户中心
+          </button>
+          <button class="dropdown-item logout-btn" @click.stop="handleLogout">
+            <LogOut class="item-icon" :size="16" aria-hidden="true" />退出登录
+          </button>
         </div>
       </div>
     </div>
@@ -16,14 +25,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/auth'; // 导入 auth store
 import { useRouter } from 'vue-router';
+import { ChevronDown, LogOut, UserRound, Wheat } from '@lucide/vue';
 
 const authStore = useAuthStore();
 const router = useRouter();
 const isDropdownOpen = ref(false);
 const dropdownRef = ref(null);
+
+// 头像上用邮箱首字母
+const userInitial = computed(() => {
+  const email = authStore.user?.email || '';
+  return email ? email[0].toUpperCase() : 'U';
+});
 
 const openDropdown = () => {
   isDropdownOpen.value = !isDropdownOpen.value;
@@ -64,45 +80,104 @@ const handleLogout = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 20px;
-  background-color: rgba(230, 244, 234, 0.8);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid rgba(200, 230, 201, 0.6);
-  color: #1b5e20;
-  position: relative;
-  z-index: 999;
+  gap: 16px;
+  padding: 10px 22px;
+  min-height: var(--header-h);
+  box-sizing: border-box;
+  background-color: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: var(--shadow-xs);
+  color: var(--color-primary-green-darkest);
+  position: sticky;
+  top: 0;
+  z-index: 800;
+}
+
+.header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
 }
 
 .header-title h1 {
   margin: 0;
-  font-size: 1.5em;
+  font-size: 1.22em;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.title-icon { flex-shrink: 0; color: var(--color-primary-green-dark); }
+
+.header-sub {
+  font-size: 0.78em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .user-info {
   position: relative;
+  flex-shrink: 0;
 }
 
 .dropdown {
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 10px 5px 5px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.dropdown:hover {
+  border-color: var(--color-primary-green-light);
+  box-shadow: var(--shadow-xs);
+}
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-primary-green), var(--color-primary-green-dark));
+  color: #fff;
+  font-size: 0.82em;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .dropdown-trigger {
-  margin-right: 15px;
-  padding: 5px 10px;
-  border-radius: 2px;
-  transition: background-color 0.2s;
-}
-
-.dropdown-trigger:hover {
-  background-color: rgba(76, 175, 80, 0.2);
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.9em;
+  color: var(--color-text);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dropdown-arrow {
   display: inline-block;
   transition: transform 0.25s ease;
-  font-size: 0.75em;
-  margin-left: 2px;
+  font-size: 0.7em;
+  margin-left: 3px;
+  color: var(--color-text-muted);
 }
 
 .dropdown-arrow.open {
@@ -111,61 +186,57 @@ const handleLogout = async () => {
 
 .dropdown-menu {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 6px);
   right: 0;
-  margin-top: 5px;
-  background-color: white;
-  border: 1px solid #c8e6c9;
-  border-radius: 4px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  min-width: 140px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  min-width: 160px;
+  padding: 6px;
   z-index: 1000;
 }
 
 .dropdown-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
-  padding: 10px 15px;
+  padding: 9px 10px;
   text-align: left;
   border: none;
+  border-radius: var(--radius-xs);
   background: none;
   cursor: pointer;
-  color: #1b5e20;
-  transition: background-color 0.2s;
+  color: var(--color-text);
+  font-size: 0.92em;
+  transition: background-color 0.16s ease;
 }
 
 .dropdown-item:hover {
-  background-color: #e6f4ea;
+  background-color: var(--color-primary-green-lightest);
+}
+
+.item-icon {
+  width: 16px;
+  text-align: center;
+  opacity: 0.8;
 }
 
 .dropdown-item.logout-btn {
-  color: #ff9800;
+  color: var(--color-error);
 }
 
 .dropdown-item.logout-btn:hover {
-  background-color: #ffebee;
+  background-color: #fdecee;
 }
 
-.logout-button {
-  background-color: #4caf50; /* 绿色按钮 */
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 2px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.logout-button:hover {
-  background-color: #388e3c; /* 深一点的绿色 */
-}
-
-.quota-info {
-  margin-right: 15px;
-  font-size: 0.9em;
-  color: var(--color-primary-green-dark);
-  background-color: var(--color-primary-green-lightest);
-  padding: 3px 8px;
-  border-radius: 4px;
+@media (max-width: 820px) {
+  .header-sub {
+    display: none;
+  }
+  .dropdown-trigger {
+    max-width: 90px;
+  }
 }
 </style>

@@ -35,29 +35,31 @@ onMounted(async () => {
 /* 基础重置和字体 */
 body {
   margin: 0;
-  font-family: Avenir, Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans, Avenir, Helvetica, Arial, sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #2c3e50;
-  background-color: #f4f4f4; /* 添加一个浅灰色背景 */
+  color: var(--color-text, #1f2d3a);
+  background-color: var(--color-background, #f2f7f3);
 }
 
 #app-layout {
   display: flex;
+  min-height: 100vh;
 }
 
 .main-content-wrapper {
   flex-grow: 1; /* 占据剩余空间 */
-  margin-left: 200px; /* 为侧边栏留出空间 */
+  margin-left: var(--sidebar-w, 200px); /* 为侧边栏留出空间 */
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  max-height: 100vh; /* 确保内容区至少和屏幕一样高 */
+  height: 100vh;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* 仅在登录后应用 margin-left */
 #app-layout > template:first-of-type .main-content-wrapper {
-  margin-left: 200px;
+  margin-left: var(--sidebar-w, 200px);
 }
 /* 未登录时不需要 margin-left */
 #app-layout > template:last-of-type .main-content-wrapper {
@@ -68,16 +70,14 @@ body {
   width: 100%;
 }
 
-
+/* 内容区：透明底 + 独立滚动，标题栏与侧边栏固定 */
 .page-content {
-  padding: 20px;
-  flex-grow: 1;
-  background-color: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  margin: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  padding: 18px 20px 20px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background-color: transparent;
+  box-sizing: border-box;
 }
 
 /* 修正未登录页面的样式，使其居中 */
@@ -90,4 +90,10 @@ body {
   box-sizing: border-box;
 }
 
+/* 窄屏：收起侧边栏文字，仅留图标 */
+@media (max-width: 1100px) {
+  :root {
+    --sidebar-w: 68px;
+  }
+}
 </style>
