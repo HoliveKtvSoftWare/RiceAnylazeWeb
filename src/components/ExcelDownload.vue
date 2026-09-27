@@ -14,6 +14,7 @@
               @change="toggleAllColumns"
             />
             全选/取消全选
+            <span v-if="columnsLoading" class="columns-loading">加载数据项中…</span>
           </label>
         </div>
         <div class="columns-grid">
@@ -53,6 +54,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import { excelService } from '@/services/excelServerce';
 
 const props = defineProps({
   visible: {
@@ -70,6 +72,12 @@ const props = defineProps({
   selectedCount: {
     type: Number,
     default: 1
+  },
+  // 本次导出对应的分析类型（stem / leaf_our …）。茎秆与剑叶是两套完全不同的
+  // 指标，列定义必须跟着记录走，否则后端会判定"无效的列选择"。
+  taskType: {
+    type: String,
+    default: 'stem'
   }
 });
 
@@ -97,32 +105,32 @@ const confirmButtonText = computed(() => {
 const selectedColumns = ref(['filename']);
 const selectedUnit = ref('um');
 
-// 可下载的数据项配置
-const availableColumns = [
-  { key: 'filename', label: '样本名称' },
-  { key: 'largeTailCount', label: '大维管束数目' },
-  { key: 'smallTailCount', label: '小维管束数目' },
-  { key: 'totalCount', label: '总维管束数目' },
-  { key: 'largeTailArea', label: '大维管束面积' },
-  { key: 'smallTailArea', label: '小维管束面积' },
-  { key: 'stemDiameter', label: '茎秆直径' },
-  { key: 'stemPerimeter', label: '茎秆周长' },
-  { key: 'cavityArea', label: '空腔面积' },
-  { key: 'stemCavityAreaDiff', label: '茎秆面积与空腔面积差值' },
-  { key: 'largeSmallAreaRatio', label: '大维管束面积与小维管束面积比值' },
-  { key: 'largeSmallCountRatio', label: '大维管束数目与小维管束数目比值' },
-  { key: 'stemArea', label: '茎秆面积' },
-  { key: 'cavityStemAreaRatio', label: '空腔面积与茎秆面积比值' },
-  { key: 'smallCountPerimeterRatio', label: '小维管束数目与茎秆周长比值' },
-  { key: 'largeCountPerimeterCavityRatio', label: '大维管束数目与茎秆周长与空腔面积差值比值' }
-];
+// 可下载的数据项：向后端要当前分析类型的列定义。
+// 原来这里写死了一份茎秆列表，剑叶记录一勾选就会被后端判定"无效的列选择"。
+const availableColumns = ref([{ key: 'filename', label: '样本名称' }]);
+const columnsLoading = ref(false);
+
+const loadAvailableColumns = async (taskType) => {
+  columnsLoading.value = true;
+  try {
+    const data = await excelService.getExportColumns(taskType || 'stem');
+    const mapping = data.available_columns || {};
+    const items = Object.keys(mapping).map(key => ({ key, label: mapping[key] }));
+    availableColumns.value = items.length ? items : [{ key: 'filename', label: '样本名称' }];
+  } catch (err) {
+    console.error('Failed to load export columns:', err);
+    availableColumns.value = [{ key: 'filename', label: '样本名称' }];
+  } finally {
+    columnsLoading.value = false;
+  }
+};
 
 // 全选/取消全选
 const toggleAllColumns = () => {
-  if (selectedColumns.value.length === availableColumns.length) {
+  if (selectedColumns.value.length === availableColumns.value.length) {
     selectedColumns.value = [];
   } else {
-    selectedColumns.value = availableColumns.map(col => col.key);
+    selectedColumns.value = availableColumns.value.map(col => col.key);
   }
 };
 
@@ -147,6 +155,7 @@ watch(() => props.visible, (val) => {
   if (val) {
     selectedColumns.value = ['filename'];
     selectedUnit.value = 'um';
+    loadAvailableColumns(props.taskType);
   }
 });
 </script>
@@ -234,6 +243,13 @@ watch(() => props.visible, (val) => {
 
 .select-all-label input {
   margin-right: 8px;
+}
+
+.columns-loading {
+  margin-left: 10px;
+  font-weight: normal;
+  font-size: 0.85em;
+  color: #888;
 }
 
 .columns-grid {

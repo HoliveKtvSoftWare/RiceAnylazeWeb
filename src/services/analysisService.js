@@ -3,10 +3,11 @@ import { transformKeys } from '@/utils/transform';
 
 /**
  * 获取后端可用的模型列表
+ * @param {string} [group] - 按大类过滤：stem=茎秆 / leaf=剑叶；不传返回全部
  * @returns {Promise<{models: Array<{name: string, path: string}>, default: string}>}
  */
-const fetchModels = () => {
-  return apiClient.get('/analysis/models')
+const fetchModels = (group = null) => {
+  return apiClient.get('/analysis/models', { params: group ? { group } : {} })
     .then(response => response.data);
 };
 
@@ -75,13 +76,14 @@ const uploadFolder = (files, modelName = null, onProgress = null, batchName = nu
 
 /**
  * 获取当前用户的分析历史记录
+ * @param {string} [group] - 按大类过滤：stem=茎秆 / leaf=剑叶；不传返回全部
  * @returns {Promise<Array<object>>} 包含分析记录对象的数组或抛出错误
  */
-const getHistory = () => {
-  console.debug('Fetching analysis history...'); // 添加日志
+const getHistory = (group = null) => {
+  console.debug('Fetching analysis history...', group || 'all'); // 添加日志
   // 发送 GET 请求到 /analysis/history
   // apiClient 的请求拦截器会自动添加 Authorization Token
-  return apiClient.get('/analysis/history')
+  return apiClient.get('/analysis/history', { params: group ? { group } : {} })
       .then(response => {
         console.debug('History fetched successfully:', response.data);
         return transformKeys(response.data);

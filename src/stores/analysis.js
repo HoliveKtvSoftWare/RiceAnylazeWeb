@@ -57,6 +57,19 @@ export const useAnalysisStore = defineStore('analysis', () => {
     return batchNameMap.value[batchId] || null;
   }
 
+  // 当前页面在看哪一类记录：'stem'（茎秆）或 'leaf'（剑叶）。
+  // 两类的指标口径完全不同，记录也必须分开显示——否则在茎秆页勾到剑叶记录，
+  // 导出时会拿错列定义（后端会判定"无效的列选择"）。
+  const historyGroup = ref(null);
+
+  function setHistoryGroup(group) {
+    const next = group || null;
+    if (historyGroup.value === next) return;
+    historyGroup.value = next;
+    // 换了分类，上一条选中的记录已经不属于当前列表了
+    selectedJob.value = null;
+  }
+
   /** @type {Array<{name: string, path: string}>} */
   const availableModels = ref([]);
   const defaultModelName = ref(null);
@@ -119,7 +132,9 @@ export const useAnalysisStore = defineStore('analysis', () => {
           if (filtered.length > 0) targetJobs = filtered;
         }
 
-        const completedCount = targetJobs.filter(j => j.status !== 'processing').length;
+        // 只有 completed / failed 才算跑完；queued（排队）和 processing（正在跑）
+        // 都还在进行中，不能算成"已完成"。
+        const completedCount = targetJobs.filter(j => j.status === 'completed' || j.status === 'failed').length;
         batchProgress.value.completed = completedCount;
 
         if (completedCount >= totalCount) {
@@ -158,7 +173,9 @@ export const useAnalysisStore = defineStore('analysis', () => {
           if (filtered.length > 0) targetJobs = filtered;
         }
 
-        const completedCount = targetJobs.filter(j => j.status !== 'processing').length;
+        // 只有 completed / failed 才算跑完；queued（排队）和 processing（正在跑）
+        // 都还在进行中，不能算成"已完成"。
+        const completedCount = targetJobs.filter(j => j.status === 'completed' || j.status === 'failed').length;
         batchProgress.value.completed = completedCount;
 
         if (completedCount >= totalCount) {
@@ -191,11 +208,13 @@ export const useAnalysisStore = defineStore('analysis', () => {
 
   /**
    * 从后端拉取可用模型列表
+   * @param {string} [group] - 不传则跟随当前页面的分类（stem / leaf）
    */
-  async function fetchModelsAction() {
+  async function fetchModelsAction(group) {
+    const targetGroup = group === undefined ? historyGroup.value : group;
     modelsLoading.value = true;
     try {
-      const data = await analysisService.fetchModels();
+      const data = await analysisService.fetchModels(targetGroup);
       availableModels.value = data.models || [];
       defaultModelName.value = data.default || null;
       if (!currentModelName.value && data.default) {
@@ -283,7 +302,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     if (manageLoading) isLoading.value = true;
     setError(null);
     try {
-      const historyData = await analysisService.getHistory();
+      const historyData = await analysisService.getHistory(historyGroup.value);
       historyList.value = historyData;
       if (selectedJob.value) {
         const updated = historyData.find(j => j.analysisId === selectedJob.value.analysisId);
@@ -362,9 +381,13 @@ export const useAnalysisStore = defineStore('analysis', () => {
     }
   }
 
-  // 刷新后恢复批次进度浮层
+  // 刷新后恢复批次进度浮层。type 就是当时上传的分析大类，顺便把历史过滤对齐，
+  // 否则恢复出来的计数会把另一类的记录也算进去。
   if (batchProgress.value.visible && batchProgress.value.total > 0 && batchProgress.value.completed < batchProgress.value.total) {
     const { type, total, batchId, completed } = batchProgress.value;
+    if (type === 'stem' || type === 'leaf') {
+      historyGroup.value = type;
+    }
     resumeBatchProgressPolling(type, total, batchId, completed);
   }
 
@@ -372,6 +395,8 @@ export const useAnalysisStore = defineStore('analysis', () => {
     isLoading,
     error,
     historyList,
+    historyGroup,
+    setHistoryGroup,
     selectedJob,
     availableModels,
     defaultModelName,

@@ -87,22 +87,21 @@ apiClient.interceptors.response.use(
       } else if (status >= 400 && status < 500) {
         // --- 处理其他客户端错误 (4xx) ---
         // 例如 400 Bad Request, 404 Not Found, 403 Forbidden
-        // 通常这些错误表示前端发送的数据有问题或权限不足
-        // 可以考虑在这里显示一个通用的错误提示给用户
-        alert(`客户端错误: ${error.response.data?.detail || error.message}`);
+        // 只记日志，不弹原生 alert：浏览器会在用户勾选"阻止此页面创建更多
+        // 对话框"后静默屏蔽 alert，而 confirm 会被一并屏蔽 —— 那正是"点删除
+        // 没反应"的成因。错误现在由各页面自己的横幅展示（见 analysisStore.error）。
+        console.error('Client error:', status, error.response.data?.detail || error.message);
 
       } else if (status >= 500) {
         // --- 处理服务器端错误 (5xx) ---
         // 例如 500 Internal Server Error
         // 这通常表示后端代码出错了
-        // 可以考虑显示一个“服务器繁忙”的提示
-        // alert(`服务器错误: ${error.message}`);
+        console.error('Server error:', error.message);
       }
     } else if (error.request) {
       // --- 处理网络错误 (请求已发出，但没有收到响应) ---
       console.error('Network Error:', error.message)
-      // 可能是后端服务没启动、网络不通等
-      alert('网络连接错误，请检查您的网络或稍后再试。');
+      // 可能是后端服务没启动、网络不通等；同样不弹原生对话框
     } else {
       // --- 处理请求设置错误 ---
       // 在设置请求时就发生了错误

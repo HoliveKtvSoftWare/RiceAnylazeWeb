@@ -2,9 +2,9 @@ import apiClient from './apiClient';
 import { downloadBlob } from '@/utils/fileDownload';
 import { transformKeys } from '@/utils/transform';
 
-const getExportColumns = () => {
-    console.debug('Fetching export columns configuration...');
-    return apiClient.get('/excel/columns')
+const getExportColumns = (taskType = 'stem') => {
+    console.debug('Fetching export columns configuration for', taskType);
+    return apiClient.get('/excel/columns', { params: { task_type: taskType } })
         .then(response => response.data)
         .catch(error => {
             console.error('Failed to fetch export columns:', error.response?.data || error.message);
@@ -12,9 +12,9 @@ const getExportColumns = () => {
         });
 };
 
-const exportSingleToExcel = (analysisId, originalFilename, selectedColumns, unit) => {
+const exportSingleToExcel = (analysisId, originalFilename, selectedColumns, unit, taskType = 'stem') => {
     console.debug(`Exporting single analysis ${analysisId} (${originalFilename}) to Excel...`);
-    return apiClient.post(`/excel/${analysisId}`, { selectedColumns, unit }, {
+    return apiClient.post(`/excel/${analysisId}`, { selectedColumns, unit, taskType }, {
         responseType: 'blob',
         timeout: 30000
     }).then(response => {
@@ -27,9 +27,9 @@ const exportSingleToExcel = (analysisId, originalFilename, selectedColumns, unit
     });
 };
 
-const batchExportToExcel = (analysisIds, selectedColumns, unit, asyncMode = false) => {
+const batchExportToExcel = (analysisIds, selectedColumns, unit, asyncMode = false, taskType = 'stem') => {
     console.debug(`Batch exporting ${analysisIds.length} analyses to Excel, asyncMode:`, asyncMode);
-    return apiClient.post('/excel/batch', { analysisIds, selectedColumns, unit, asyncMode }, {
+    return apiClient.post('/excel/batch', { analysisIds, selectedColumns, unit, asyncMode, taskType }, {
         responseType: asyncMode ? 'json' : 'blob',
         timeout: asyncMode ? 10000 : Math.max(30000, analysisIds.length * 2000)
     }).then(response => {
@@ -47,9 +47,9 @@ const batchExportToExcel = (analysisIds, selectedColumns, unit, asyncMode = fals
     });
 };
 
-const exportAllToExcel = (selectedColumns, unit, asyncMode = true) => {
+const exportAllToExcel = (selectedColumns, unit, asyncMode = true, taskType = 'stem') => {
     console.debug('Exporting all analyses to Excel, asyncMode:', asyncMode);
-    return apiClient.post('/excel/summary', { selectedColumns, unit, asyncMode }, {
+    return apiClient.post('/excel/summary', { selectedColumns, unit, asyncMode, taskType }, {
         responseType: asyncMode ? 'json' : 'blob',
         timeout: asyncMode ? 10000 : 120000
     }).then(response => {
