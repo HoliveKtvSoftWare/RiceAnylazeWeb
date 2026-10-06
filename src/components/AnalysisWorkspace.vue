@@ -413,11 +413,9 @@ const props = defineProps({
 
 const showDownloadDialog = ref(false);
 const currentDownloadType = ref('summary'); // 'summary' 或 'single'
-// 本次导出对应的分析类型：茎秆与剑叶的数据项完全不同，导出时必须按记录的类型取列
+// 导出时向后端索取列定义用的代表任务类型。取所选记录自己的 taskType，
+// 后端据此解析出所属「族」再给列 —— 前端不参与"哪个记录属于哪一族"的判断。
 const currentTaskType = ref(props.group);
-
-// leaf / leaf_v11 / leaf_our … 共用同一套列定义，只有 stem 与 leaf 是两套
-const schemaOfTask = (taskType) => (taskType === 'stem' ? 'stem' : 'leaf');
 
 // ---- 应用内确认框（替代 window.confirm）----
 // 浏览器在用户勾选"阻止此页面创建更多对话框"后会静默屏蔽原生对话框，
@@ -677,12 +675,18 @@ const openDownloadDialog = () => {
     return;
   }
   const jobOf = (id) => analysisStore.historyList.find(j => j.analysisId === id) || analysisStore.selectedJob;
-  const types = ids.map(id => jobOf(id)?.taskType || 'stem');
-  if (new Set(types.map(schemaOfTask)).size > 1) {
-    analysisStore.setError('所选记录同时包含茎秆与剑叶，两者的数据项不同，请分开导出');
+  const jobs = ids.map(jobOf).filter(Boolean);
+
+  // 记录自带后端算好的 group（分析大类），前端不再用 task_type 去猜族 ——
+  // 后端新增一个大类时，前端这里零改动。
+  const groups = new Set(jobs.map(job => job.group || props.group));
+  if (groups.size > 1) {
+    analysisStore.setError('所选记录属于不同的分析大类，数据项不同，请分开导出');
     return;
   }
-  currentTaskType.value = types[0];
+
+  // 同一族内不同权重（leaf / leaf_our …）列定义完全相同，取第一条的任务类型向后端要列即可
+  currentTaskType.value = jobs[0]?.taskType || props.group;
   currentDownloadType.value = ids.length === 1 ? 'single' : 'batch';
   showDownloadDialog.value = true;
 };
