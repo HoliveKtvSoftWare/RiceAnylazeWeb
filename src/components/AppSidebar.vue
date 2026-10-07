@@ -2,10 +2,6 @@
   <aside :class="['app-sidebar', { collapsed }]">
     <div class="sidebar-logo">
       <div class="logo-icon">🌾</div>
-      <div class="logo-text">
-        <span class="logo-title">水稻</span>
-        <span class="logo-sub">微表型分析</span>
-      </div>
       <button class="collapse-btn" @click="toggleCollapse" :title="collapsed ? '展开' : '收缩'">
         <span class="collapse-icon" :class="{ rotated: collapsed }">«</span>
       </button>
@@ -55,7 +51,7 @@ defineExpose({ collapsed });
 
 <style scoped>
 .app-sidebar {
-  width: 200px;
+  width: 170px;
   background: linear-gradient(180deg, rgba(27, 94, 32, 0.95) 0%, rgba(46, 125, 50, 0.92) 100%);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -70,24 +66,28 @@ defineExpose({ collapsed });
   flex-direction: column;
   z-index: 1000;
   box-shadow: var(--shadow-lg);
-  transition: width var(--transition-normal, 0.3s ease);
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
+}
+
+.app-sidebar.collapsed {
+  width: 72px;
 }
 
 .sidebar-logo {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 20px 20px;
+  padding: 20px 52px 20px 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   margin-bottom: 8px;
   position: relative;
-  transition: padding var(--transition-normal, 0.3s ease);
+  transition: padding 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .app-sidebar.collapsed .sidebar-logo {
   flex-direction: column;
-  padding: 8px 8px 4px;
+  padding: 8px 8px 72px;
   gap: 0;
   align-items: center;
   margin-bottom: 0;
@@ -109,7 +109,7 @@ defineExpose({ collapsed });
   display: flex;
   flex-direction: column;
   line-height: 1.2;
-  transition: opacity var(--transition-normal, 0.2s ease), max-width var(--transition-normal, 0.3s ease);
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.4s, max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.4s;
   max-width: 140px;
   overflow: hidden;
 }
@@ -117,6 +117,7 @@ defineExpose({ collapsed });
 .app-sidebar.collapsed .logo-text {
   opacity: 0;
   max-width: 0;
+  transition-delay: 0s;
 }
 
 .logo-title {
@@ -146,7 +147,7 @@ defineExpose({ collapsed });
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-normal, 0.2s ease);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 0;
 }
 
@@ -160,26 +161,25 @@ defineExpose({ collapsed });
 }
 
 .app-sidebar.collapsed .collapse-btn {
-  position: static;
-  transform: none;
-  margin-left: 0;
+  top: 60px;
+  left: 50%;
   right: auto;
-  align-self: center;
+  transform: translateX(-50%);
 }
 
 .app-sidebar.collapsed .collapse-btn:hover {
-  transform: scale(1.1);
+  transform: translateX(-50%) scale(1.1);
 }
 
 .app-sidebar.collapsed .collapse-btn:active {
-  transform: scale(0.95);
+  transform: translateX(-50%) scale(0.95);
 }
 
 .collapse-icon {
   font-size: 14px;
   font-weight: bold;
   line-height: 1;
-  transition: transform var(--transition-normal, 0.3s ease);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   display: inline-block;
 }
 
@@ -191,7 +191,7 @@ nav {
   flex: 1;
   padding: 8px 12px;
   overflow-y: auto;
-  transition: padding var(--transition-normal, 0.3s ease);
+  transition: padding 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .app-sidebar.collapsed nav {
@@ -242,7 +242,7 @@ nav li {
   height: 0;
   background: linear-gradient(180deg, #81c784, #c8e6c9);
   border-radius: 0 3px 3px 0;
-  transition: height var(--transition-normal);
+  transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .nav-link:hover {
@@ -257,6 +257,19 @@ nav li {
 
 .nav-link:hover::before {
   height: 60%;
+}
+
+.nav-link.active-link {
+  background-color: var(--color-sidebar-active, rgba(255, 255, 255, 0.2));
+  color: white;
+}
+
+.nav-link.active-link::before {
+  height: 70%;
+}
+
+.nav-link.active-link:hover::before {
+  height: 85%;
 }
 
 .nav-icon {
@@ -274,24 +287,29 @@ nav li {
 .nav-label {
   flex: 1;
   white-space: nowrap;
-  transition: opacity var(--transition-normal, 0.2s ease);
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.4s, width 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.4s, flex 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.4s;
 }
 
 .app-sidebar.collapsed .nav-label {
   opacity: 0;
   width: 0;
   flex: none;
+  transition-delay: 0s;
 }
 
-.active-link .nav-icon {
+.nav-link.active-link .nav-icon {
   transform: scale(1.15);
+}
+
+.app-sidebar.collapsed .nav-link.active-link::before {
+  height: 60%;
 }
 
 .sidebar-footer {
   padding: 16px 20px;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   text-align: center;
-  transition: padding var(--transition-normal, 0.3s ease);
+  transition: padding 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .app-sidebar.collapsed .sidebar-footer {
@@ -302,10 +320,11 @@ nav li {
   font-size: 0.75em;
   color: rgba(255, 255, 255, 0.5);
   letter-spacing: 1px;
-  transition: opacity var(--transition-normal, 0.2s ease);
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.4s;
 }
 
 .app-sidebar.collapsed .footer-version {
   opacity: 0;
+  transition-delay: 0s;
 }
 </style>

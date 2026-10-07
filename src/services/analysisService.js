@@ -12,44 +12,14 @@ const fetchModels = (group = null) => {
 };
 
 /**
- * 上传图片文件进行分析
- * @param {File} file - 用户选择的图片文件对象
- * @param {string} batchId - 批次ID，用于标识同一次上传的多个文件
- * @param {string} [modelName] - 选中的模型名称（可选，不传则后端用默认模型）
- * @returns {Promise<object>} 后端返回的包含 analysis_id 的响应数据或抛出错误
+ * 上传文件进行分析（单文件和多文件统一接口，后端自动识别）
+ * @param {File[]|FileList} files - 要上传的文件数组或 FileList
+ * @param {string} [modelName] - 选中的模型名称（可选）
+ * @param {Function} [onProgress] - 上传进度回调
+ * @param {string} [batchName] - 批次名称（可选）
+ * @returns {Promise<object>} 后端返回的响应数据
  */
-const uploadFile = (file, batchId = null, modelName = null, onProgress = null, batchName = null) => {
-  const formData = new FormData();
-  formData.append('file', file);
-  if (batchId) {
-    formData.append('batch_id', batchId);
-  }
-  if (modelName) {
-    formData.append('model_name', modelName);
-  }
-  if (batchName) {
-    formData.append('batch_name', batchName);
-  }
-
-  return apiClient.post('/analysis/upload', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-    onUploadProgress: (event) => {
-      if (onProgress && event.total) {
-        onProgress(Math.round((event.loaded * 100) / event.total));
-      }
-    },
-  }).then(response => transformKeys(response.data));
-};
-
-/**
- * 批量上传文件夹中的图片进行分析
- * @param {FileList|Array} files - 文件夹中的文件列表
- * @param {string} [modelName] - 选中的模型名称（可选，整个批次用同一个模型）
- * @returns {Promise<object>} 后端返回的批量上传结果
- */
-const uploadFolder = (files, modelName = null, onProgress = null, batchName = null) => {
+const uploadAnalysis = (files, modelName = null, onProgress = null, batchName = null) => {
   const fileArray = Array.from(files);
   const formData = new FormData();
   fileArray.forEach(file => {
@@ -62,7 +32,7 @@ const uploadFolder = (files, modelName = null, onProgress = null, batchName = nu
     formData.append('batch_name', batchName);
   }
 
-  return apiClient.post('/analysis/upload/batch', formData, {
+  return apiClient.post('/analysis/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -127,8 +97,7 @@ const batchDeleteJobs = (analysisIds) => {
 // 导出服务对象
 export const analysisService = {
   fetchModels,
-  uploadFile,
-  uploadFolder,
+  uploadAnalysis,
   getHistory,
   deleteJob,
   batchDeleteJobs,

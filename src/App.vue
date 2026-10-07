@@ -105,7 +105,7 @@ onMounted(async () => {
 
 .main-content-wrapper {
   flex-grow: 1;
-  margin-left: 200px;
+  margin-left: 170px;
   display: flex;
   flex-direction: column;
   min-height: 100vh;

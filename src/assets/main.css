@@ -4,7 +4,6 @@
   --color-primary-green-darkest: #1b5e20;
   --color-primary-green-dark: #2e7d32;
   --color-primary-green: #4caf50;
-  --color-primary-green-lighter: #a5d6a7;
   --color-primary-green-light: #c8e6c9;
   --color-primary-green-lightest: #e8f5e9;
   --color-primary-green-bg: #f1f8e9;
@@ -26,13 +25,8 @@
   --color-error-light: #fee2e2;
   --color-warning: #f59e0b;
   --color-warning-light: #fef3c7;
-  --color-info: #3b82f6;
-  --color-info-light: #dbeafe;
   --color-success: #22c55e;
-  --color-success-light: #dcfce7;
 
-  --color-sidebar-bg: rgba(30, 90, 40, 0.92);
-  --color-sidebar-hover: rgba(255, 255, 255, 0.12);
   --color-sidebar-active: rgba(255, 255, 255, 0.2);
 
   --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -48,15 +42,8 @@
   --radius-xl: 16px;
   --radius-full: 9999px;
 
-  --spacing-xs: 4px;
-  --spacing-sm: 8px;
-  --spacing-md: 16px;
-  --spacing-lg: 24px;
-  --spacing-xl: 32px;
-
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-bounce: 500ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
@@ -141,16 +128,6 @@ button.secondary:hover:not(:disabled) {
   transform: translateY(-1px);
 }
 
-button.ghost {
-  background-color: transparent;
-  color: var(--color-text-secondary);
-}
-
-button.ghost:hover:not(:disabled) {
-  background-color: var(--color-surface-hover);
-  color: var(--color-text-primary);
-}
-
 button.danger {
   background: linear-gradient(135deg, #ef4444, #dc2626);
   color: white;
@@ -189,8 +166,7 @@ input[type="text"],
 input[type="email"],
 input[type="password"],
 input[type="file"],
-select,
-textarea {
+select {
   padding: 10px 14px;
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -206,8 +182,7 @@ textarea {
 input[type="text"]:focus,
 input[type="email"]:focus,
 input[type="password"]:focus,
-select:focus,
-textarea:focus {
+select:focus {
   border-color: var(--color-primary-green);
   box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.15);
 }
@@ -218,21 +193,8 @@ input[type="file"] {
   padding: 8px 0;
 }
 
-input::placeholder,
-textarea::placeholder {
+input::placeholder {
   color: var(--color-text-light);
-}
-
-.card {
-  background-color: var(--color-surface);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--color-border-light);
-  transition: box-shadow var(--transition-normal), transform var(--transition-normal);
-}
-
-.card:hover {
-  box-shadow: var(--shadow-md);
 }
 
 .error-message {
@@ -265,21 +227,6 @@ textarea::placeholder {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-8px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes fadeInScale {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-@keyframes slideInLeft {
-  from { opacity: 0; transform: translateX(-20px); }
-  to { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes pulse {

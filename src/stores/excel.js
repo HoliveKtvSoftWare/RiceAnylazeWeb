@@ -13,6 +13,9 @@ export const useExcelStore = defineStore('excel', () => {
     const taskTotal = ref(0);
     const taskMessage = ref('');
     const isAsyncTask = ref(false);
+    const isCancelling = ref(false);
+
+    let currentPollPromise = null;
 
     function setError(message) {
         error.value = message;
@@ -23,12 +26,26 @@ export const useExcelStore = defineStore('excel', () => {
         taskTotal.value = 0;
         taskMessage.value = '';
         isAsyncTask.value = false;
+        isCancelling.value = false;
+        currentPollPromise = null;
     }
 
     function onProgressUpdate({ progress, total, message }) {
         taskProgress.value = progress ?? 0;
         taskTotal.value = total ?? 0;
         taskMessage.value = message || '';
+    }
+
+    function cancelExport() {
+        if (!currentPollPromise || isCancelling.value) return;
+        isCancelling.value = true;
+        taskMessage.value = '正在取消导出...';
+        try {
+            currentPollPromise.cancel?.();
+        } catch (e) {
+            console.warn('Error during cancel:', e);
+        }
+        currentPollPromise = null;
     }
 
     async function downloadSingleExcelAction(analysisId, originalFilename, selectedColumns, unit, taskType = 'stem') {
@@ -66,7 +83,9 @@ export const useExcelStore = defineStore('excel', () => {
                     analysisIds, selectedColumns, unit, true, taskType
                 );
                 taskMessage.value = '导出任务已提交，处理中...';
-                await excelService.pollAndDownloadTask(taskId, onProgressUpdate, 1500);
+                currentPollPromise = excelService.pollAndDownloadTask(taskId, onProgressUpdate, 1500);
+                await currentPollPromise;
+                currentPollPromise = null;
             } else {
                 await excelService.batchExportToExcel(
                     analysisIds, selectedColumns, unit, false, taskType
@@ -75,9 +94,13 @@ export const useExcelStore = defineStore('excel', () => {
             console.log(`Batch Excel downloaded (${analysisIds.length} items)`);
             return true;
         } catch (err) {
-            console.error('Download batch Excel failed:', err);
-            const detail = err.response?.data?.detail || err.message || '批量下载Excel报告失败。';
-            setError(detail);
+            if (isCancelling.value) {
+                setError('导出已取消');
+            } else {
+                console.error('Download batch Excel failed:', err);
+                const detail = err.response?.data?.detail || err.message || '批量下载Excel报告失败。';
+                setError(detail);
+            }
             return false;
         } finally {
             isLoading.value = false;
@@ -95,13 +118,19 @@ export const useExcelStore = defineStore('excel', () => {
         try {
             const { taskId } = await excelService.exportAllToExcel(selectedColumns, unit, true, taskType);
             taskMessage.value = '汇总导出任务已提交，处理中...';
-            await excelService.pollAndDownloadTask(taskId, onProgressUpdate, 1500);
+            currentPollPromise = excelService.pollAndDownloadTask(taskId, onProgressUpdate, 1500);
+            await currentPollPromise;
+            currentPollPromise = null;
             console.log('Summary Excel downloaded');
             return true;
         } catch (err) {
-            console.error('Download Excel summary failed:', err);
-            const detail = err.response?.data?.detail || err.message || '下载Excel总表失败。';
-            setError(detail);
+            if (isCancelling.value) {
+                setError('导出已取消');
+            } else {
+                console.error('Download Excel summary failed:', err);
+                const detail = err.response?.data?.detail || err.message || '下载Excel总表失败。';
+                setError(detail);
+            }
             return false;
         } finally {
             isLoading.value = false;
@@ -117,7 +146,9 @@ export const useExcelStore = defineStore('excel', () => {
         taskTotal,
         taskMessage,
         isAsyncTask,
+        isCancelling,
         setError,
+        cancelExport,
         downloadSingleExcelAction,
         downloadBatchExcelAction,
         downloadExcelSummaryAction,

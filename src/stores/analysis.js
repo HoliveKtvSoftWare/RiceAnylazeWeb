@@ -122,9 +122,12 @@ export const useAnalysisStore = defineStore('analysis', () => {
       completed: 0
     };
 
+    let consecutiveErrors = 0;
+
     const pollOnce = async () => {
       try {
         await fetchHistoryAction(false);
+        consecutiveErrors = 0;
 
         let targetJobs = historyList.value;
         if (batchId) {
@@ -137,14 +140,24 @@ export const useAnalysisStore = defineStore('analysis', () => {
         const completedCount = targetJobs.filter(j => j.status === 'completed' || j.status === 'failed').length;
         batchProgress.value.completed = completedCount;
 
-        if (completedCount >= totalCount) {
+        const effectiveTotal = Math.min(totalCount, targetJobs.length);
+        const hasProcessingRemaining = targetJobs.some(j => j.status === 'processing');
+
+        if (!hasProcessingRemaining && (targetJobs.length >= effectiveTotal || completedCount >= effectiveTotal)) {
           stopBatchProgressPolling();
           batchFinalHideTimer = setTimeout(() => {
             batchProgress.value.visible = false;
           }, 2000);
         }
       } catch (err) {
+        consecutiveErrors++;
         console.error('Batch progress polling error:', err);
+
+        if (consecutiveErrors >= 3) {
+          console.warn('Batch progress polling failed 3 times, stopping to avoid infinite loop.');
+          stopBatchProgressPolling();
+          batchProgress.value.visible = false;
+        }
       }
     };
 
@@ -163,9 +176,12 @@ export const useAnalysisStore = defineStore('analysis', () => {
       completed: currentCompleted
     };
 
+    let consecutiveErrors = 0;
+
     const pollOnce = async () => {
       try {
         await fetchHistoryAction(false);
+        consecutiveErrors = 0;
 
         let targetJobs = historyList.value;
         if (batchId) {
@@ -178,14 +194,24 @@ export const useAnalysisStore = defineStore('analysis', () => {
         const completedCount = targetJobs.filter(j => j.status === 'completed' || j.status === 'failed').length;
         batchProgress.value.completed = completedCount;
 
-        if (completedCount >= totalCount) {
+        const effectiveTotal = Math.min(totalCount, targetJobs.length);
+        const hasProcessingRemaining = targetJobs.some(j => j.status === 'processing');
+
+        if (!hasProcessingRemaining && (targetJobs.length >= effectiveTotal || completedCount >= effectiveTotal)) {
           stopBatchProgressPolling();
           batchFinalHideTimer = setTimeout(() => {
             batchProgress.value.visible = false;
           }, 2000);
         }
       } catch (err) {
+        consecutiveErrors++;
         console.error('Batch progress polling error:', err);
+
+        if (consecutiveErrors >= 3) {
+          console.warn('Batch progress polling failed 3 times, stopping to avoid infinite loop.');
+          stopBatchProgressPolling();
+          batchProgress.value.visible = false;
+        }
       }
     };
 
@@ -231,50 +257,18 @@ export const useAnalysisStore = defineStore('analysis', () => {
   }
 
   /**
-   * 上传图片文件进行分析
-   * @param {File} file - 要上传的文件
-   * @param {string} batchId - 批次ID，用于标识同一次上传的多个文件
-   * @param {string} [modelName] - 选中的模型名称（可选）
+   * 上传文件进行分析（单/多文件统一，后端自动识别）
+   * @param {File[]|FileList} files - 要上传的文件
+   * @param {string} [modelName] - 选中的模型名称
+   * @param {Function} [onProgress] - 上传进度回调
+   * @param {string} [batchName] - 批次名称（可选）
    */
-  async function uploadFileAction(file, batchId = null, modelName = null, onProgress = null, manageLoading = true, batchName = null) {
-    if (manageLoading) isLoading.value = true;
+  async function uploadAnalysisAction(files, modelName = null, onProgress = null, batchName = null) {
+    isLoading.value = true;
     setError(null);
     try {
-      const responseData = await analysisService.uploadFile(file, batchId, modelName, onProgress, batchName);
-      console.log('Upload successful, response:', responseData);
-
-      if (responseData.analysisId && responseData.originalFilename) {
-        if (batchId && batchName) {
-          setBatchName(batchId, batchName);
-        }
-        await fetchHistoryAction(false);
-      } else {
-        console.error('Upload response missing analysis_id or original_filename:', responseData);
-        setError('上传响应无效。'); // 调用 action 设置错误
-      }
-      return true; // 表示上传操作成功
-    } catch (err) {
-      console.error('Upload action failed:', err.response?.data || err.message);
-      // 从后端错误中提取 detail 字段
-      const detail = err.response?.data?.detail || err.message || '上传文件失败。';
-      setError(detail); // 调用 action 设置错误
-      return false; // 表示上传操作失败
-    } finally {
-      if (manageLoading) isLoading.value = false;
-    }
-  }
-
-  /**
-   * 批量上传文件夹进行分析
-   * @param {FileList|Array} files - 文件夹中的文件列表
-   * @param {string} [modelName] - 选中的模型名称（可选，整个批次用同一个模型）
-   */
-  async function uploadFolderAction(files, modelName = null, onProgress = null, manageLoading = true, batchName = null) {
-    if (manageLoading) isLoading.value = true;
-    setError(null);
-    try {
-      const responseData = await analysisService.uploadFolder(files, modelName, onProgress, batchName);
-      console.log('Folder upload successful, response:', responseData);
+      const responseData = await analysisService.uploadAnalysis(files, modelName, onProgress, batchName);
+      console.log('Upload analysis successful, response:', responseData);
 
       const responseBatchId = responseData?.batchId || responseData?.batch_id;
       if (responseBatchId && batchName) {
@@ -283,14 +277,14 @@ export const useAnalysisStore = defineStore('analysis', () => {
 
       await fetchHistoryAction(false);
 
-      return responseData; // 返回响应数据
+      return responseData;
     } catch (err) {
-      console.error('Folder upload action failed:', err.response?.data || err.message);
-      const detail = err.response?.data?.detail || err.message || '上传文件夹失败。';
+      console.error('Upload analysis failed:', err.response?.data || err.message);
+      const detail = err.response?.data?.detail || err.message || '上传文件失败。';
       setError(detail);
       return null;
     } finally {
-      if (manageLoading) isLoading.value = false;
+      isLoading.value = false;
     }
   }
 
@@ -324,6 +318,10 @@ export const useAnalysisStore = defineStore('analysis', () => {
     selectedJob.value = job; // 更新选中的记录
     // 选中新任务时也清除错误
     setError(null);
+  }
+
+  function setCurrentModelName(name) {
+    currentModelName.value = name;
   }
 
   /**
@@ -383,12 +381,21 @@ export const useAnalysisStore = defineStore('analysis', () => {
 
   // 刷新后恢复批次进度浮层。type 就是当时上传的分析大类，顺便把历史过滤对齐，
   // 否则恢复出来的计数会把另一类的记录也算进去。
+  // 只有已登录用户才恢复轮询，避免登录页/未登录状态发起无意义请求
   if (batchProgress.value.visible && batchProgress.value.total > 0 && batchProgress.value.completed < batchProgress.value.total) {
-    const { type, total, batchId, completed } = batchProgress.value;
-    if (type === 'stem' || type === 'leaf') {
-      historyGroup.value = type;
+    const hasToken = !!localStorage.getItem('authToken');
+    if (hasToken) {
+      const { type, total, batchId, completed } = batchProgress.value;
+      if (type === 'stem' || type === 'leaf') {
+        historyGroup.value = type;
+      }
+      resumeBatchProgressPolling(type, total, batchId, completed);
+    } else {
+      // 未登录但有残留进度数据，说明上次是未登出就关了，清理掉
+      console.warn('Found unfinished batch progress but user is not logged in, clearing stale progress.');
+      localStorage.removeItem(BATCH_PROGRESS_STORAGE_KEY);
+      batchProgress.value = { visible: false, type: '', batchId: null, total: 0, completed: 0 };
     }
-    resumeBatchProgressPolling(type, total, batchId, completed);
   }
 
   return {
@@ -410,11 +417,11 @@ export const useAnalysisStore = defineStore('analysis', () => {
     getBatchName,
     startBatchProgressPolling,
     clearBatchProgress,
-    uploadFileAction,
-    uploadFolderAction,
+    uploadAnalysisAction,
     fetchHistoryAction,
     fetchModelsAction,
     selectJobAction,
+    setCurrentModelName,
     setError,
     deleteJobAction,
     batchDeleteAction,

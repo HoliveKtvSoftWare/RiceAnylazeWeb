@@ -89,12 +89,25 @@ const downloadTaskResult = (taskId) => {
     });
 };
 
-const pollAndDownloadTask = (taskId, onProgress, interval = 1500) => {
-    return new Promise((resolve, reject) => {
-        let attempts = 0;
-        const maxAttempts = 300;
+const cancelTask = (taskId) => {
+    console.debug(`Cancelling export task ${taskId}...`);
+    return apiClient.post(`/excel/tasks/${taskId}/cancel`)
+        .then(() => true)
+        .catch(error => {
+            console.warn('Cancel task API not available or failed:', error.response?.status);
+            return false;
+        });
+};
 
+const pollAndDownloadTask = (taskId, onProgress, interval = 1500) => {
+    let timer = null;
+    let attempts = 0;
+    const maxAttempts = 300;
+    let cancelled = false;
+
+    const promise = new Promise((resolve, reject) => {
         const poll = async () => {
+            if (cancelled) return;
             attempts++;
             if (attempts > maxAttempts) {
                 clearInterval(timer);
@@ -103,6 +116,7 @@ const pollAndDownloadTask = (taskId, onProgress, interval = 1500) => {
             }
             try {
                 const status = await getTaskStatus(taskId);
+                if (cancelled) return;
                 onProgress?.({
                     status: status.status,
                     progress: status.progress ?? 0,
@@ -124,13 +138,28 @@ const pollAndDownloadTask = (taskId, onProgress, interval = 1500) => {
                 }
             } catch (err) {
                 clearInterval(timer);
-                reject(err);
+                if (!cancelled) reject(err);
             }
         };
 
-        const timer = setInterval(poll, interval);
+        timer = setInterval(poll, interval);
         poll();
     });
+
+    promise.cancel = async () => {
+        cancelled = true;
+        if (timer) {
+            clearInterval(timer);
+            timer = null;
+        }
+        try {
+            await cancelTask(taskId);
+        } catch (e) {
+            console.warn('Error notifying backend of cancellation:', e);
+        }
+    };
+
+    return promise;
 };
 
 export const excelService = {
