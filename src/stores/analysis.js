@@ -257,19 +257,26 @@ export const useAnalysisStore = defineStore('analysis', () => {
   }
 
   /**
-   * 上传文件进行分析（单/多文件统一，后端自动识别）
-   * @param {File[]|FileList} files - 要上传的文件
+   * 上传文件进行分析（单/多文件统一）
+   * @param {File[]|FileList|File} files - 要上传的文件
    * @param {string} [modelName] - 选中的模型名称
    * @param {Function} [onProgress] - 上传进度回调
    * @param {string} [batchName] - 批次名称（可选）
+   * @param {string} [batchId] - 批次 id（可选）：逐个上传多张单图时传同一个 id，
+   *   后端复用它把这批图归为同一批次；不传则每张图各成一个批次
+   * @param {boolean} [manageLoading=true] - 是否由本 action 管理全局 isLoading。
+   *   调用方若自己包了 loading（如逐个上传的进度弹窗），传 false 避免中途被清掉。
    */
-  async function uploadAnalysisAction(files, modelName = null, onProgress = null, batchName = null) {
-    isLoading.value = true;
+  async function uploadAnalysisAction(files, modelName = null, onProgress = null, batchName = null,
+                                      batchId = null, manageLoading = true) {
+    if (manageLoading) isLoading.value = true;
     setError(null);
     try {
-      const responseData = await analysisService.uploadAnalysis(files, modelName, onProgress, batchName);
+      const responseData = await analysisService.uploadAnalysis(files, modelName, onProgress, batchName, batchId);
       console.log('Upload analysis successful, response:', responseData);
 
+      // 用后端返回的 batch_id 登记批次名：历史记录里的 batchId 就是它。
+      // （客户端自己生成的 id 会被后端映射成 uuid5，直接拿它登记会查不到名字）
       const responseBatchId = responseData?.batchId || responseData?.batch_id;
       if (responseBatchId && batchName) {
         setBatchName(responseBatchId, batchName);
@@ -284,7 +291,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       setError(detail);
       return null;
     } finally {
-      isLoading.value = false;
+      if (manageLoading) isLoading.value = false;
     }
   }
 

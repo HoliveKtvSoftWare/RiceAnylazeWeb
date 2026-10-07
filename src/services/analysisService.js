@@ -12,27 +12,47 @@ const fetchModels = (group = null) => {
 };
 
 /**
- * 上传文件进行分析（单文件和多文件统一接口，后端自动识别）
- * @param {File[]|FileList} files - 要上传的文件数组或 FileList
+ * 上传文件进行分析
+ *
+ * 后端有两个端点，**字段名不同**，必须按文件数选对，否则 422：
+ *   - `POST /analysis/upload`       收 `file` （单数，UploadFile）
+ *   - `POST /analysis/upload/batch` 收 `files`（复数，List[UploadFile]）
+ * 两个端点都接受 `batch_id` / `batch_name`：
+ *   - `batch_id`：一次"选多张单图"时把同一个 id 发给每张图，后端复用它，
+ *     使这批图在历史里归为同一批次（不传则每张图各成一个批次）
+ *   - `batch_name`：批次展示名（如文件夹名）
+ *
+ * @param {File[]|FileList|File} files - 要上传的文件
  * @param {string} [modelName] - 选中的模型名称（可选）
  * @param {Function} [onProgress] - 上传进度回调
  * @param {string} [batchName] - 批次名称（可选）
- * @returns {Promise<object>} 后端返回的响应数据
+ * @param {string} [batchId] - 批次 id（可选，多张单图共用）
+ * @returns {Promise<object>} 后端返回的响应数据（含 analysisId / batchId）
  */
-const uploadAnalysis = (files, modelName = null, onProgress = null, batchName = null) => {
+const uploadAnalysis = (files, modelName = null, onProgress = null, batchName = null, batchId = null) => {
   const fileArray = Array.from(files);
+  if (fileArray.length === 0) {
+    return Promise.reject(new Error('没有选择任何文件'));
+  }
+
+  const single = fileArray.length === 1;
   const formData = new FormData();
-  fileArray.forEach(file => {
-    formData.append('files', file);
-  });
+  if (single) {
+    formData.append('file', fileArray[0]);
+  } else {
+    fileArray.forEach(file => formData.append('files', file));
+  }
   if (modelName) {
     formData.append('model_name', modelName);
   }
   if (batchName) {
     formData.append('batch_name', batchName);
   }
+  if (batchId) {
+    formData.append('batch_id', batchId);
+  }
 
-  return apiClient.post('/analysis/upload', formData, {
+  return apiClient.post(single ? '/analysis/upload' : '/analysis/upload/batch', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },

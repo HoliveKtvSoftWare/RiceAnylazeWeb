@@ -956,12 +956,14 @@ const handleFolderUpload = async () => {
   let response = null;
   beginCriticalOperation();
   try {
-    response = await analysisStore.uploadFolderAction(
+    // 整个文件夹一次请求：交给后端建一个批次（不传 batchId，由后端生成）
+    response = await analysisStore.uploadAnalysisAction(
       selectedFolderFiles.value,
       analysisStore.currentModelName,
       (percent) => { uploadProgress.value.percent = percent; },
-      false,
-      folderName
+      folderName,
+      null,
+      false            // loading 由本页面统一管理
     );
   } finally {
     analysisStore.isLoading = false;
@@ -1068,9 +1070,14 @@ const handleFileUpload = async () => {
       };
 
       console.log(`上传文件: ${file.name}, 使用模型: ${analysisStore.currentModelName}, 批次ID: ${currentBatchId.value}`);
-      const success = await analysisStore.uploadFileAction(
-        file, currentBatchId.value, analysisStore.currentModelName,
-        updatePercent, false, batchName
+      // 逐个上传，但共用同一个 currentBatchId，后端把它们归为同一批次
+      const success = await analysisStore.uploadAnalysisAction(
+        [file],
+        analysisStore.currentModelName,
+        updatePercent,
+        batchName,
+        currentBatchId.value,
+        false          // loading 由本页面统一管理
       );
       if (success) {
         uploadedCount.push(file.name);
