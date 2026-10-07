@@ -6,20 +6,25 @@
           <div class="upload-controls">
             <div class="model-select">
               <label for="model-choice">选择模型:</label>
-              <select id="model-choice" v-model="analysisStore.currentModelName" :disabled="analysisStore.isLoading || analysisStore.modelsLoading">
-                <option v-if="analysisStore.modelsLoading" value="">加载中...</option>
-                <option v-else-if="analysisStore.availableModels.length === 0" :value="null">默认模型</option>
-                <option
-                  v-for="m in analysisStore.availableModels"
-                  :key="m.name"
-                  :value="m.name"
-                >{{ m.name }}</option>
-              </select>
+              <div
+                class="model-dropdown"
+                ref="modelDropdownRef"
+                @click="toggleModelDropdown"
+              >
+                <div class="model-dropdown-trigger" :class="{ disabled: analysisStore.isLoading || analysisStore.modelsLoading }">
+                  <span class="model-dropdown-label">
+                    <span v-if="analysisStore.modelsLoading">加载中...</span>
+                    <span v-else-if="analysisStore.availableModels.length === 0">默认模型</span>
+                    <span v-else>{{ currentModelDisplayName }}</span>
+                  </span>
+                  <span class="model-dropdown-arrow" :class="{ open: isModelDropdownOpen }">▸</span>
+                </div>
+              </div>
             </div>
 
             <label class="file-input-label">
               <input type="file" @change="handleFileSelect" accept="image/*" :disabled="analysisStore.isLoading" ref="fileInput" multiple />
-              <span>🖼️选择单张图片</span>
+              <span>🖼️选择图片</span>
             </label>
 
             <label class="folder-input-label">
@@ -27,12 +32,8 @@
               <span>📁选择文件夹</span>
             </label>
 
-            <button @click="handleFileUpload" :disabled="selectedFiles.length === 0 || analysisStore.isLoading" class="primary upload-button">
-              {{ analysisStore.isLoading ? '处理中...' : '上传图片并分割' }}
-            </button>
-
-            <button @click="handleFolderUpload" :disabled="selectedFolderFiles.length === 0 || analysisStore.isLoading" class="primary folder-upload-button">
-              {{ analysisStore.isLoading ? '处理中...' : '上传文件夹并分割' }}
+            <button @click="handleUploadAnalysis" :disabled="allSelectedFiles.length === 0 || analysisStore.isLoading" class="primary upload-button">
+              {{ analysisStore.isLoading ? '处理中...' : `上传分析${allSelectedFiles.length > 0 ? ` (${allSelectedFiles.length})` : ''}` }}
             </button>
 
           </div>
@@ -241,9 +242,21 @@
                   :style="{ width: exportProgressPercent + '%' }"
                 ></div>
               </div>
+              <button
+                @click="handleCancelExport"
+                :disabled="excelStore.isCancelling"
+                class="export-cancel-button"
+                title="取消导出"
+              >{{ excelStore.isCancelling ? '取消中...' : '取消' }}</button>
             </div>
             <div v-else-if="excelStore.isLoading && !excelStore.isAsyncTask" class="export-progress-bar export-sync">
               <span>{{ excelStore.taskMessage || '正在生成并下载文件...' }}</span>
+              <button
+                @click="handleCancelExport"
+                :disabled="excelStore.isCancelling"
+                class="export-cancel-button"
+                title="取消导出"
+              >{{ excelStore.isCancelling ? '取消中...' : '取消' }}</button>
             </div>
             <div v-if="analysisStore.error" class="error-message">{{ analysisStore.error }}</div>
             <div v-if="notice" class="notice-message">{{ notice }}</div>
@@ -365,6 +378,41 @@
 
   </main>
 
+  <teleport to="body">
+    <transition name="dropdown">
+      <div
+        v-show="isModelDropdownOpen"
+        ref="modelDropdownMenuRef"
+        class="model-dropdown-menu"
+        :style="menuPositionStyle"
+        @click.stop
+        @mouseenter="clearTimeout(modelHoverCloseTimer)"
+        @mouseleave="handleMenuMouseLeave"
+      >
+        <div
+          v-if="analysisStore.modelsLoading"
+          class="model-dropdown-item disabled"
+        >加载中...</div>
+        <div
+          v-else-if="analysisStore.availableModels.length === 0"
+          class="model-dropdown-item"
+          :class="{ active: !analysisStore.currentModelName }"
+          @click="selectModel(null)"
+        >默认模型</div>
+        <div
+          v-for="m in analysisStore.availableModels"
+          :key="m.name"
+          class="model-dropdown-item"
+          :class="{ active: analysisStore.currentModelName === m.name }"
+          @click="selectModel(m.name)"
+        >
+          <span class="model-item-name">{{ m.name }}</span>
+          <span v-if="analysisStore.currentModelName === m.name" class="model-item-check">✓</span>
+        </div>
+      </div>
+    </transition>
+  </teleport>
+
   <!-- Excel下载数据项选择弹窗 -->
   <ExcelDownload
       :visible="showDownloadDialog"
@@ -401,8 +449,8 @@ import { beginCriticalOperation, endCriticalOperation } from '@/services/apiClie
 const analysisStore = useAnalysisStore();
 const excelStore = useExcelStore();
 
-// 茎秆与剑叶共用这一套工作台，只靠 group 区分：历史记录、模型下拉、批次进度
-// 都跟着 group 走。两个页面各挂一个实例，路由切换时组件重建。
+// 茎秆与剑叶共用这一套分析工作台，差别只在 group：历史记录与模型列表都按它过滤，
+// 两个页面因此严格分区。不传 group 就会互相看到对方的记录。
 const props = defineProps({
   group: {
     type: String,
@@ -411,26 +459,32 @@ const props = defineProps({
   },
 });
 
-const showDownloadDialog = ref(false);
-const currentDownloadType = ref('summary'); // 'summary' 或 'single'
-// 导出时向后端索取列定义用的代表任务类型。取所选记录自己的 taskType，
-// 后端据此解析出所属「族」再给列 —— 前端不参与"哪个记录属于哪一族"的判断。
+// 导出时向后端索取列定义用的代表任务类型：取所选记录自己的 taskType，
+// 由后端解析出所属「族」再给列 —— 前端不参与"这条记录属于哪个族"的判断。
 const currentTaskType = ref(props.group);
 
+// 列表标题与空态按大类区分，避免在剑叶页看到"茎秆"字样
+const LIST_TITLE = { stem: '茎秆分割记录', leaf: '剑叶分割记录' };
+const listTitle = computed(() => LIST_TITLE[props.group] || '分割记录');
+const EMPTY_HINT = {
+  stem: '暂无茎秆分析记录，上传图片开始第一次茎秆分割。',
+  leaf: '暂无剑叶分析记录，上传图片开始第一次剑叶分割。',
+};
+const emptyHint = computed(() => EMPTY_HINT[props.group] || '暂无分析记录。');
+
 // ---- 应用内确认框（替代 window.confirm）----
-// 浏览器在用户勾选"阻止此页面创建更多对话框"后会静默屏蔽原生对话框，
-// confirm() 直接返回 false，表现就是"点删除没任何反应"。删除不可撤销，
-// 必须给出确定的反馈，所以换成自己画的对话框。
+// 部分运行环境会抑制页面创建的原生对话框（静默返回 false），
+// 表现就是"点删除没任何反应"。删除不可撤销，所以自己画对话框，不去赌环境行为。
 const confirmState = ref({
   visible: false,
   title: '确认操作',
   message: '',
-  confirmText: '确定',
+  confirmText: '确认',
   danger: false,
 });
 let confirmHandler = null;
 
-function askConfirm({ title, message, confirmText = '确定', danger = false, onConfirm }) {
+function askConfirm({ title, message, confirmText = '确认', danger = false, onConfirm }) {
   confirmState.value = { visible: true, title, message, confirmText, danger };
   confirmHandler = onConfirm;
   notice.value = '';
@@ -443,24 +497,18 @@ function resolveConfirm(accepted) {
   if (accepted && handler) handler();
 }
 
-// 删除/导出这类操作的文字反馈（不用 alert，同样会被浏览器屏蔽）
+// 操作结果提示（删除成功之类）。原生 alert 同样可能被抑制，所以走页面内的提示条。
 const notice = ref('');
 
-// 后端是单 worker 串行队列：上传后先 `queued`（排队），worker 取到才开始 `processing`。
-// 两种都属于"还没结束"，轮询必须覆盖 —— 之前只认 `processing`，而上传后是 `queued`，
-// 结果轮询压根没启动，界面就永远停在"排队中"。
+// 后端是单 worker 串行队列：刚上传是 `queued`（排队），worker 取到才变 `processing`，
+// 成功才 `completed`。两个进行中状态都要算，否则上传后停在 queued 就停止轮询、
+// 界面永远显示"排队中"。
 const PENDING_STATUSES = ['pending', 'queued', 'processing'];
 const isPendingStatus = (status) => PENDING_STATUSES.includes(status);
 const isFinishedStatus = (status) => status === 'completed' || status === 'failed';
 
-// 列表标题带上分类，让"两边的记录是隔开的"这件事在界面上看得见
-const LIST_TITLE = { stem: '茎秆分割记录', leaf: '剑叶分割记录' };
-const listTitle = computed(() => LIST_TITLE[props.group] || '分割记录');
-const EMPTY_HINT = {
-  stem: '暂无茎秆分析记录。上传图片开始第一次茎秆分割。',
-  leaf: '暂无剑叶分析记录。上传图片开始第一次剑叶分割。',
-};
-const emptyHint = computed(() => EMPTY_HINT[props.group] || '暂无分析记录。');
+const showDownloadDialog = ref(false);
+const currentDownloadType = ref('summary'); // 'summary' 或 'single'
 
 // JSON导出相关状态
 const selectedAnalysisIds = ref([]);
@@ -508,11 +556,6 @@ const refreshedJobs = ref(new Set());
 // 当前展开的批次ID
 const expandedBatchIds = ref(new Set());
 
-// 生成批次ID
-const generateBatchId = () => {
-  return 'batch_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-};
-
 // 从文件夹上传的文件列表中提取最顶层文件夹名称
 const extractFolderName = (files) => {
   for (const file of files) {
@@ -539,9 +582,6 @@ const getGroupBatchName = (group) => {
 
   return null;
 };
-
-// 当前上传批次ID
-const currentBatchId = ref(null);
 
 // 按批次ID分组的历史记录
 const groupedHistory = computed(() => {
@@ -677,15 +717,14 @@ const openDownloadDialog = () => {
   const jobOf = (id) => analysisStore.historyList.find(j => j.analysisId === id) || analysisStore.selectedJob;
   const jobs = ids.map(jobOf).filter(Boolean);
 
-  // 记录自带后端算好的 group（分析大类），前端不再用 task_type 去猜族 ——
-  // 后端新增一个大类时，前端这里零改动。
+  // 记录自带后端算好的 group（分析大类）。跨大类不能合表导出：两者的数据项完全不同。
   const groups = new Set(jobs.map(job => job.group || props.group));
   if (groups.size > 1) {
     analysisStore.setError('所选记录属于不同的分析大类，数据项不同，请分开导出');
     return;
   }
 
-  // 同一族内不同权重（leaf / leaf_our …）列定义完全相同，取第一条的任务类型向后端要列即可
+  // 同一大类内不同权重（leaf / leaf_our …）列定义完全相同，取第一条的任务类型向后端要列即可
   currentTaskType.value = jobs[0]?.taskType || props.group;
   currentDownloadType.value = ids.length === 1 ? 'single' : 'batch';
   showDownloadDialog.value = true;
@@ -695,6 +734,17 @@ const openDownloadDialog = () => {
 const closeDownloadDialog = () => {
   showDownloadDialog.value = false;
   currentDownloadType.value = 'single';
+};
+
+const handleCancelExport = () => {
+  if (excelStore.isCancelling) return;
+  askConfirm({
+    title: '取消导出',
+    message: '确定要取消当前导出吗？',
+    confirmText: '取消导出',
+    danger: true,
+    onConfirm: () => excelStore.cancelExport(),
+  });
 };
 
 // 处理Excel下载
@@ -724,7 +774,7 @@ const getCompletedSelectedIds = () => {
 const batchExportJson = async () => {
   const ids = getCompletedSelectedIds();
   if (ids.length === 0) {
-    analysisStore.setError('选中的记录里没有已完成的任务，无法导出 JSON。');
+    analysisStore.setError('选中的记录中没有已完成的任务，无法导出 JSON');
     return;
   }
   isExporting.value = true;
@@ -748,21 +798,21 @@ const batchExportJson = async () => {
 
 const handleBatchDelete = async () => {
   const count = selectedAnalysisIds.value.length;
+  // 按钮不再因为"没勾选"而禁用：禁用会让人以为功能坏了。这里给出明确提示。
   if (count === 0) {
-    analysisStore.setError('请先勾选要删除的记录（每条记录前面的复选框），再点删除。');
+    analysisStore.setError('请先勾选要删除的记录（每条记录前的复选框），再点删除');
     return;
   }
-  const ids = [...selectedAnalysisIds.value];
   askConfirm({
     title: '批量删除记录',
-    message: `确定要删除选中的 ${count} 条记录吗？此操作不可恢复，关联的原图、标注图和 JSON 文件会一并清理。`,
+    message: `确定要删除选中的 ${count} 条记录吗？此操作不可恢复，同时会清理关联的原图、标注图和 JSON 文件。`,
     confirmText: `删除 ${count} 条`,
     danger: true,
     onConfirm: async () => {
-      const result = await analysisStore.batchDeleteAction(ids);
+      const result = await analysisStore.batchDeleteAction([...selectedAnalysisIds.value]);
       if (!result) return;
       const skipped = result.skipped_ids || [];
-      selectedAnalysisIds.value = selectedAnalysisIds.value.filter(id => !ids.includes(id));
+      selectedAnalysisIds.value = [];
       notice.value = skipped.length > 0
         ? `成功删除 ${result.deleted_count}/${result.total_requested} 条记录，${skipped.length} 条删除失败`
         : `成功删除 ${result.deleted_count} 条记录`;
@@ -812,7 +862,7 @@ watch(() => analysisStore.selectedJob, (newJob) => {
       dragStart: { x: 0, y: 0 }
     };
 
-    if (isPendingStatus(newJob.status)) {
+    if (newJob.status === 'processing') {
       startPolling(newJob.analysisId);
     } else {
       stopPolling();
@@ -822,17 +872,90 @@ watch(() => analysisStore.selectedJob, (newJob) => {
   }
 });
 
-// 组件挂载时切到本页的分类，再取历史和模型列表（都跟着分类过滤）
+const modelDropdownRef = ref(null);
+const modelDropdownMenuRef = ref(null);
+const isModelDropdownOpen = ref(false);
+const menuPositionStyle = ref({});
+let modelHoverCloseTimer = null;
+
+const currentModelDisplayName = computed(() => {
+  if (!analysisStore.currentModelName) return '默认模型';
+  const found = analysisStore.availableModels.find(m => m.name === analysisStore.currentModelName);
+  return found ? found.name : analysisStore.currentModelName;
+});
+
+const updateMenuPosition = () => {
+  if (!modelDropdownRef.value) return;
+  const rect = modelDropdownRef.value.getBoundingClientRect();
+  menuPositionStyle.value = {
+    position: 'fixed',
+    left: `${rect.right + 6}px`,
+    top: `${rect.top}px`,
+  };
+};
+
+const toggleModelDropdown = () => {
+  if (analysisStore.isLoading || analysisStore.modelsLoading) return;
+  if (!isModelDropdownOpen.value) {
+    updateMenuPosition();
+  }
+  isModelDropdownOpen.value = !isModelDropdownOpen.value;
+  clearTimeout(modelHoverCloseTimer);
+};
+
+const handleMenuMouseLeave = () => {
+  clearTimeout(modelHoverCloseTimer);
+  modelHoverCloseTimer = setTimeout(() => {
+    isModelDropdownOpen.value = false;
+  }, 150);
+};
+
+const closeModelDropdown = () => {
+  isModelDropdownOpen.value = false;
+  clearTimeout(modelHoverCloseTimer);
+};
+
+const selectModel = (modelName) => {
+  analysisStore.setCurrentModelName(modelName);
+  closeModelDropdown();
+};
+
+const handleModelClickOutside = (event) => {
+  const trigger = modelDropdownRef.value;
+  const menu = modelDropdownMenuRef.value;
+  const target = event.target;
+  if (trigger && trigger.contains(target)) return;
+  if (menu && menu.contains(target)) return;
+  closeModelDropdown();
+};
+
 onMounted(() => {
+  // 关键：先把本页的大类写进 store，之后不带参数的 fetchHistory/fetchModels 都按它过滤。
+  // 不设置的话会沿用上一个页面留下的大类（store 里是全局共享的），
+  // 于是"茎秆页看到剑叶记录 / 剑叶页看到茎秆模型"。
   analysisStore.setHistoryGroup(props.group);
   analysisStore.fetchHistoryAction();
   analysisStore.fetchModelsAction();
+  document.addEventListener('click', handleModelClickOutside);
+  window.addEventListener('scroll', closeModelDropdown, true);
+  window.addEventListener('resize', closeModelDropdown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleModelClickOutside);
+  window.removeEventListener('scroll', closeModelDropdown, true);
+  window.removeEventListener('resize', closeModelDropdown);
 });
 
 // 处理文件选择（支持单文件和多文件选择）
 const selectedFiles = ref([]);
 const selectedFolderFiles = ref([]);
 const folderInput = ref(null);
+
+const allSelectedFiles = computed(() => [
+  ...selectedFiles.value,
+  ...selectedFolderFiles.value
+]);
 
 // 上传进度条
 const uploadProgress = ref({
@@ -932,41 +1055,41 @@ const handleFolderSelect = (event) => {
   }
 };
 
-// 处理文件夹上传
-const handleFolderUpload = async () => {
-  if (selectedFolderFiles.value.length === 0) {
-    analysisStore.setError('请先选择文件夹！');
+// 统一上传处理（自动适配单文件/多文件）
+const handleUploadAnalysis = async () => {
+  const allFiles = allSelectedFiles.value;
+  if (allFiles.length === 0) {
+    analysisStore.setError('请先选择图片文件或文件夹！');
     return;
   }
-  uploadSuccessMessage.value = '';
-  analysisStore.isLoading = true;
 
-  const totalFiles = selectedFolderFiles.value.length;
+  uploadSuccessMessage.value = '';
+
+  const totalFiles = allFiles.length;
+  const isBatch = totalFiles > 1;
   const folderName = extractFolderName(selectedFolderFiles.value);
+  const batchName = isBatch ? (folderName || `批量上传 (${totalFiles} 个文件)`) : null;
+
   uploadProgress.value = {
     visible: true,
     percent: 0,
-    currentFile: '文件夹批量上传中',
+    currentFile: isBatch ? `上传中 (${totalFiles} 个文件)` : allFiles[0].name,
     completed: 0,
     total: totalFiles,
     phase: 'uploading'
   };
 
-  console.log(`上传文件夹 "${folderName}"，共 ${totalFiles} 个文件，使用模型: ${analysisStore.currentModelName}`);
+  console.log(`上传 ${isBatch ? '批次' : '单个文件'}，共 ${totalFiles} 个，使用模型: ${analysisStore.currentModelName}`);
   let response = null;
   beginCriticalOperation();
   try {
-    // 整个文件夹一次请求：交给后端建一个批次（不传 batchId，由后端生成）
     response = await analysisStore.uploadAnalysisAction(
-      selectedFolderFiles.value,
+      allFiles,
       analysisStore.currentModelName,
       (percent) => { uploadProgress.value.percent = percent; },
-      folderName,
-      null,
-      false            // loading 由本页面统一管理
+      batchName
     );
   } finally {
-    analysisStore.isLoading = false;
     endCriticalOperation();
   }
 
@@ -975,31 +1098,44 @@ const handleFolderUpload = async () => {
     uploadProgress.value.phase = 'done';
     uploadProgress.value.currentFile = '上传完成，后端处理中...';
     setTimeout(() => { uploadProgress.value.visible = false; }, 2500);
-    uploadSuccessMessage.value = `已成功提交 ${totalFiles} 个文件进行批量处理...`;
 
-    let batchId = null;
-    if (Array.isArray(analysisStore.historyList) && analysisStore.historyList.length > 0) {
+    if (isBatch) {
+      uploadSuccessMessage.value = `已成功提交 ${totalFiles} 个文件进行批量处理...`;
+    } else {
+      uploadSuccessMessage.value = `文件 "${allFiles[0].name}" 已成功提交后台处理...`;
+    }
+
+    let batchId = response.batchId || null;
+    if (!batchId && analysisStore.historyList.length > 0) {
       const latestJob = analysisStore.historyList[0];
       batchId = latestJob.batchId || null;
     }
-    analysisStore.startBatchProgressPolling(props.group, totalFiles, batchId);
+
+    if (batchId) {
+      analysisStore.startBatchProgressPolling(props.group, totalFiles, batchId);
+    }
+
+    if (analysisStore.historyList.length > 0) {
+      analysisStore.selectJobAction(analysisStore.historyList[0]);
+      if (batchId) {
+        expandedBatchIds.value.add(batchId);
+      }
+    }
   } else {
     uploadProgress.value.visible = false;
   }
 
+  selectedFiles.value = [];
   selectedFolderFiles.value = [];
   clearPreviewPendingFile();
-  if (folderInput.value) {
-    folderInput.value.value = '';
-  }
+  if (fileInput.value) fileInput.value.value = '';
+  if (folderInput.value) folderInput.value.value = '';
 
-  // 上传新文件后清空已刷新任务记录
   refreshedJobs.value.clear();
 
-  // 开始轮询最新上传任务的状态
   if (analysisStore.historyList.length > 0) {
     const latestJob = analysisStore.historyList[0];
-    if (isPendingStatus(latestJob.status)) {
+    if (latestJob.status === 'processing') {
       startPolling(latestJob.analysisId);
     }
   }
@@ -1021,8 +1157,7 @@ const startPolling = (analysisId) => {
     await analysisStore.fetchHistoryAction(false);
 
     const job = analysisStore.historyList.find(j => j.analysisId === analysisId);
-    // 只有真正结束（completed / failed）才停；排队或被取走跑都继续轮询
-    if (job && isFinishedStatus(job.status)) {
+    if (job && job.status !== 'processing') {
       stopPolling();
       if (job.status === 'completed') {
         uploadSuccessMessage.value = `文件处理完成！`;
@@ -1031,99 +1166,6 @@ const startPolling = (analysisId) => {
       }
     }
   }, 2000);
-};
-
-// 处理文件上传
-const handleFileUpload = async () => {
-  if (selectedFiles.value.length === 0) {
-    analysisStore.setError('请先选择图片文件！');
-    return;
-  }
-  uploadSuccessMessage.value = '';
-  analysisStore.isLoading = true;
-
-  currentBatchId.value = generateBatchId();
-  const uploadedCount = [];
-
-  const totalFiles = selectedFiles.value.length;
-  const batchName = totalFiles > 1 ? `批量上传 (${totalFiles} 个文件)` : null;
-  let completedIndex = 0;
-
-  uploadProgress.value = {
-    visible: true,
-    percent: 0,
-    currentFile: '',
-    completed: 0,
-    total: totalFiles,
-    phase: 'uploading'
-  };
-
-  beginCriticalOperation();
-  try {
-    for (const file of selectedFiles.value) {
-      const currentIdx = completedIndex + 1;
-      uploadProgress.value.currentFile = `[${currentIdx}/${totalFiles}] ${file.name}`;
-      uploadProgress.value.completed = completedIndex;
-
-      const updatePercent = (p) => {
-        uploadProgress.value.percent = Math.round(((completedIndex * 100) + p) / totalFiles);
-      };
-
-      console.log(`上传文件: ${file.name}, 使用模型: ${analysisStore.currentModelName}, 批次ID: ${currentBatchId.value}`);
-      // 逐个上传，但共用同一个 currentBatchId，后端把它们归为同一批次
-      const success = await analysisStore.uploadAnalysisAction(
-        [file],
-        analysisStore.currentModelName,
-        updatePercent,
-        batchName,
-        currentBatchId.value,
-        false          // loading 由本页面统一管理
-      );
-      if (success) {
-        uploadedCount.push(file.name);
-      }
-      completedIndex++;
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-  } finally {
-    analysisStore.isLoading = false;
-    endCriticalOperation();
-  }
-
-  if (uploadedCount.length > 0) {
-    uploadProgress.value.percent = 100;
-    uploadProgress.value.phase = 'done';
-    uploadProgress.value.currentFile = `全部 ${uploadedCount.length} 个文件上传完成，后端处理中...`;
-    uploadProgress.value.completed = totalFiles;
-    setTimeout(() => { uploadProgress.value.visible = false; }, 2500);
-
-    analysisStore.startBatchProgressPolling(props.group, totalFiles, currentBatchId.value);
-
-    if (uploadedCount.length === 1) {
-      uploadSuccessMessage.value = `文件 "${uploadedCount[0]}" 已成功提交后台处理...`;
-    } else {
-      uploadSuccessMessage.value = `已成功提交 ${uploadedCount.length} 个文件进行处理...`;
-    }
-  } else {
-    uploadProgress.value.visible = false;
-  }
-
-  selectedFiles.value = [];
-  clearPreviewPendingFile();
-  if (fileInput.value) {
-    fileInput.value.value = '';
-  }
-
-  // 上传新文件后清空已刷新任务记录，因为会有新任务加入
-  refreshedJobs.value.clear();
-
-  // 开始轮询最新上传任务的状态
-  if (analysisStore.historyList.length > 0) {
-    const latestJob = analysisStore.historyList[0];
-    if (isPendingStatus(latestJob.status)) {
-      startPolling(latestJob.analysisId);
-    }
-  }
 };
 
 // 处理选中历史记录
@@ -1137,14 +1179,13 @@ const selectJob = (job) => {
 const deleteJob = async (analysisId, filename) => {
   askConfirm({
     title: '删除记录',
-    message: `确定要删除记录「${filename}」吗？此操作不可撤销，原图、标注图和结果文件会一并清除。`,
+    message: `确定要删除记录 "${filename}" 吗？此操作不可撤销，同时会清理关联的原图、标注图和 JSON 文件。`,
     confirmText: '删除',
     danger: true,
     onConfirm: async () => {
-      const ok = await analysisStore.deleteJobAction(analysisId);
-      if (ok) {
-        notice.value = `记录「${filename}」已删除`;
-        console.log(`记录 "${filename}" 已成功删除`);
+      const success = await analysisStore.deleteJobAction(analysisId);
+      if (success) {
+        notice.value = `已删除记录 "${filename}"`;
       }
     },
   });
@@ -1261,6 +1302,8 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('mousemove', handleGlobalMouseMove);
   window.removeEventListener('mouseup', handleGlobalMouseUp);
+  document.removeEventListener('click', handleModelClickOutside);
+  clearTimeout(modelHoverCloseTimer);
   clearPreviewPendingFile();
   blobUrls.forEach(url => URL.revokeObjectURL(url));
   blobUrls.clear();
@@ -1370,7 +1413,7 @@ h3::before {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   border: 1px solid var(--color-border-light);
-  flex: 0 0 190px;
+  flex: 0 0 150px;
   order: 0;
   display: flex;
   flex-direction: column;
@@ -1407,14 +1450,108 @@ h3::before {
   color: var(--color-text-muted);
 }
 
-.model-select select {
+.model-dropdown {
+  position: relative;
+  cursor: pointer;
+}
+
+.model-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 8px 12px;
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-md);
   background-color: var(--color-surface);
-  width: 100%;
-  box-sizing: border-box;
   font-size: 0.88em;
+  transition: all var(--transition-fast);
+  gap: 8px;
+  user-select: none;
+}
+
+.model-dropdown-trigger:hover:not(.disabled) {
+  border-color: var(--color-primary-green);
+  background-color: var(--color-primary-green-lightest);
+}
+
+.model-dropdown-trigger.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.model-dropdown-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-primary);
+}
+
+.model-dropdown-arrow {
+  display: inline-block;
+  transition: transform var(--transition-fast);
+  font-size: 1.1em;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.model-dropdown-arrow.open {
+  transform: rotate(90deg);
+}
+
+.model-dropdown-menu {
+  min-width: 160px;
+  background: white;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xl);
+  z-index: 99999;
+  overflow: hidden;
+  transform-origin: left center;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.model-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  font-size: 0.86em;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.model-dropdown-item:hover:not(.disabled) {
+  background-color: var(--color-primary-green-lightest);
+  color: var(--color-primary-green-darkest);
+}
+
+.model-dropdown-item.active {
+  background-color: var(--color-primary-green-lightest);
+  color: var(--color-primary-green-dark);
+  font-weight: 500;
+}
+
+.model-dropdown-item.disabled {
+  opacity: 0.6;
+  cursor: default;
+  background: none;
+}
+
+.model-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-item-check {
+  color: var(--color-primary-green);
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-left: 8px;
 }
 
 .file-input-label,
@@ -1455,25 +1592,6 @@ h3::before {
   background-color: var(--color-border-light);
   cursor: not-allowed;
   opacity: 0.6;
-}
-
-.upload-button,
-.folder-upload-button {
-  width: 100%;
-  padding: 10px 12px;
-  box-sizing: border-box;
-  font-size: 0.88em;
-  font-weight: 600;
-}
-
-.folder-upload-button {
-  background: linear-gradient(135deg, #42a5f5, #1976d2);
-  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);
-}
-
-.folder-upload-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4);
 }
 
 .batch-model-tag {
@@ -1908,7 +2026,7 @@ h3::before {
   border: 1px solid var(--color-border-light);
   margin-bottom: 5px;
   border-radius: var(--radius-md);
-  overflow: hidden;
+  overflow: visible;
   transition: all var(--transition-fast);
   background: var(--color-surface);
 }
@@ -1988,6 +2106,15 @@ h3::before {
   transform: rotate(90deg);
 }
 
+.batch-item.expanded > .batch-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: inherit;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
 .batch-content {
   list-style: none;
   padding: 4px 0;
@@ -2047,14 +2174,17 @@ h3::before {
   border-radius: 50%;
   width: 22px;
   height: 22px;
+  padding: 0;
   cursor: pointer;
   font-size: 14px;
   font-weight: bold;
+  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all var(--transition-fast);
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .delete-button:hover:not(:disabled) {
@@ -2415,46 +2545,79 @@ h3::before {
 
 .export-progress-bar {
   margin: 0 0 5px;
-  padding: 12px 14px;
+  padding: 6px 10px;
   background: linear-gradient(135deg, var(--color-primary-green-lightest), var(--color-primary-green-bg));
-  border-radius: var(--radius-md);
-  font-size: 0.84em;
+  border-radius: 6px;
+  font-size: 0.8em;
   color: var(--color-primary-green-dark);
   border: 1px solid rgba(76, 175, 80, 0.2);
-}
-
-.export-progress-bar.export-sync {
   display: flex;
   align-items: center;
+  gap: 10px;
   font-weight: 500;
 }
 
 .export-progress-info {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 6px;
-  font-weight: 500;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.export-progress-info span:first-child {
+  display: inline-block;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .export-progress-track {
   width: 100%;
-  height: 8px;
+  height: 5px;
   background: rgba(76, 175, 80, 0.15);
-  border-radius: 4px;
+  border-radius: 3px;
   overflow: hidden;
 }
 
 .export-progress-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--color-primary-green-light), var(--color-primary-green-dark));
-  border-radius: 4px;
+  border-radius: 3px;
   transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.export-cancel-button {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 0.76em;
+  font-weight: 600;
+  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.1);
+  border: 1px solid rgba(231, 76, 60, 0.3);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.export-cancel-button:hover:not(:disabled) {
+  background: rgba(231, 76, 60, 0.2);
+  border-color: rgba(231, 76, 60, 0.5);
+}
+
+.export-cancel-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.export-cancel-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .error-message {
   animation: shake 0.4s ease-in-out;
 }
 
+/* 操作成功提示（删除成功之类）。原生 alert 会被部分环境抑制，所以走页面内提示条。 */
 .notice-message {
   margin: 6px 0;
   padding: 8px 12px;
