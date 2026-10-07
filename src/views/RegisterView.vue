@@ -281,14 +281,6 @@ const handleRegister = async () => {
   margin-right: 6px;
 }
 
-.form-msg-enter-active {
-  animation: msgIn 0.3s ease-out;
-}
-
-.form-msg-leave-active {
-  animation: msgOut 0.2s ease-in;
-}
-
 @keyframes msgIn {
   from { opacity: 0; transform: translateY(-6px); }
   to { opacity: 1; transform: translateY(0); }

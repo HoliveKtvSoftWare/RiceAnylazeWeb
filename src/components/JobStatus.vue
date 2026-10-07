@@ -33,15 +33,4 @@ export default {
   border-bottom: 1px solid #eee;
 }
 
-.job-status.pending {
-  color: #f39c12;
-}
-
-.job-status.completed {
-  color: #27ae60;
-}
-
-.job-status.failed {
-  color: #e74c3c;
-}
 </style>

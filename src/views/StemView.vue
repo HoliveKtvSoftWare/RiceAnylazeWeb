@@ -1406,24 +1406,6 @@ h3::before {
   overflow-y: auto;
 }
 
-.dropdown-enter-active {
-  transition: opacity 400ms cubic-bezier(0.22, 1, 0.36, 1), transform 400ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.dropdown-leave-active {
-  transition: opacity 200ms cubic-bezier(0.4, 0, 1, 1), transform 200ms cubic-bezier(0.4, 0, 1, 1);
-}
-
-.dropdown-enter-from {
-  opacity: 0;
-  transform: translateX(-12px) scale(0.9);
-}
-
-.dropdown-leave-to {
-  opacity: 0;
-  transform: translateX(-6px) scale(0.95);
-}
-
 .model-dropdown-item {
   display: flex;
   align-items: center;
@@ -1503,25 +1485,6 @@ h3::before {
   background-color: var(--color-border-light);
   cursor: not-allowed;
   opacity: 0.6;
-}
-
-.upload-button,
-.folder-upload-button {
-  width: 100%;
-  padding: 10px 12px;
-  box-sizing: border-box;
-  font-size: 0.88em;
-  font-weight: 600;
-}
-
-.folder-upload-button {
-  background: linear-gradient(135deg, #42a5f5, #1976d2);
-  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);
-}
-
-.folder-upload-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4);
 }
 
 .batch-model-tag {

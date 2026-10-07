@@ -241,20 +241,6 @@ const goToLogin = () => {
   transform-origin: top right;
 }
 
-.dropdown-enter-active {
-  transition: all var(--transition-normal);
-}
-
-.dropdown-leave-active {
-  transition: all var(--transition-fast);
-}
-
-.dropdown-enter-from,
-.dropdown-leave-to {
-  opacity: 0;
-  transform: translateY(-8px) scale(0.96);
-}
-
 .menu-header {
   display: flex;
   align-items: center;
